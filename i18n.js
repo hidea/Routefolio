@@ -1,0 +1,184 @@
+const browserLanguage = navigator.languages?.[0] || navigator.language || "en";
+export const locale = /^ja(?:-|$)/i.test(browserLanguage) ? "ja" : "en";
+
+const ja = {
+  "Generates a monochrome section route diagram and elevation profile for print, from a GPX file.": "GPXファイルから印刷用のモノクロルート図と標高プロファイルを生成します。",
+  "Figure settings": "図の設定",
+  "GPX files are processed entirely in the browser": "GPXファイルはブラウザ内だけで処理されます",
+  "GPX & range": "GPX・範囲",
+  "Choose or drop GPX file(s) (multiple allowed)": "GPXファイルを選択またはドロップ（複数可）",
+  "None selected": "未選択",
+  "Use bundled sample": "付属サンプルを使用",
+  "Display time zone": "表示タイムゾーン",
+  "e.g. Asia/Tokyo": "例：Asia/Tokyo",
+  "Auto-detect from GPX coordinates": "GPXの座標から自動検出",
+  "Japan Standard Time": "日本標準時",
+  "Coordinated Universal Time": "協定世界時",
+  "Browser time zone": "ブラウザのタイムゾーン",
+  "Central European Time": "中央ヨーロッパ時間",
+  "UK time": "英国時間",
+  "US Eastern Time": "米国東部時間",
+  "US Pacific Time": "米国太平洋時間",
+  "Auto-detect (falls back to Asia/Tokyo if undetectable)": "自動検出（検出できない場合はAsia/Tokyo）",
+  "Range used": "使用範囲",
+  "Trim method": "範囲指定方法",
+  "Entire route": "ルート全体",
+  "Distance": "距離",
+  "Time": "時刻",
+  "Time (no time data)": "時刻（時刻データなし）",
+  "Start km": "開始 km",
+  "End km": "終了 km",
+  "Start time": "開始時刻",
+  "End time": "終了時刻",
+  "Labels & text": "ラベル・テキスト",
+  "Section name": "区間名",
+  "Section 4: Crossing the Mountains": "第四区間",
+  "Start-point name": "スタート地点名",
+  "Finish-point name": "ゴール地点名",
+  "Start": "スタート",
+  "Finish": "ゴール",
+  "Start-name direction": "スタート名の方向",
+  "Finish-name direction": "ゴール名の方向",
+  "Additional labels": "追加ラベル",
+  "Add label": "ラベルを追加",
+  "Output size": "出力サイズ",
+  "Specify by": "指定方法",
+  "Pixels": "ピクセル",
+  "Finished dimensions": "仕上がり寸法",
+  "Width px": "幅 px",
+  "Height px": "高さ px",
+  "Width mm": "幅 mm",
+  "Height mm": "高さ mm",
+  "Drawing & display items": "描画・表示項目",
+  "Lines & margins": "線・余白",
+  "Margins": "余白",
+  "Top": "上",
+  "Top right": "右上",
+  "Right": "右",
+  "Bottom right": "右下",
+  "Bottom": "下",
+  "Bottom left": "左下",
+  "Left": "左",
+  "Top left": "左上",
+  "Top center": "上中央",
+  "Center left": "左中央",
+  "Center": "中央",
+  "Center right": "右中央",
+  "Bottom center": "下中央",
+  "Link margin values": "余白の値を連動",
+  "Unlink margin values": "余白の値の連動を解除",
+  "Route line mm": "ルート線 mm",
+  "Arrow size mm": "矢印サイズ mm",
+  "Elevation noise threshold m": "獲得標高のノイズ閾値 m",
+  "Text & points": "テキスト・地点",
+  "Heading size pt": "見出しサイズ pt",
+  "Label size pt": "ラベルサイズ pt",
+  "Point size %": "地点サイズ %",
+  "Profile label size pt": "プロファイルラベルサイズ pt",
+  "Heading block placement": "見出しブロックの配置",
+  "Section name horizontal offset mm": "区間名の横オフセット mm",
+  "Section name vertical offset mm": "区間名の縦オフセット mm",
+  "Map placement": "マップ配置",
+  "Map zoom %": "マップ拡大率 %",
+  "Horizontal offset mm": "横オフセット mm",
+  "Vertical offset mm": "縦オフセット mm",
+  "Elevation profile": "標高プロファイル",
+  "Placement": "配置",
+  "Line width mm": "線幅 mm",
+  "Toggle display": "表示切替",
+  "Background map": "背景地図",
+  "Direction of travel": "進行方向",
+  "Elevation on profile labels": "プロファイルラベルに標高を表示",
+  "Start/end datetime": "開始・終了日時",
+  "Anti-aliasing": "アンチエイリアス",
+  "Save": "保存",
+  "Save PNG": "PNGを保存",
+  "Save SVG": "SVGを保存",
+  "Export settings": "設定を書き出す",
+  "Load settings": "設定を読み込む",
+  "Export layout": "レイアウトを書き出す",
+  "Load layout": "レイアウトを読み込む",
+  "Please choose a GPX file.": "GPXファイルを選択してください。",
+  "Background map:": "背景地図：",
+  "Project links": "プロジェクトリンク",
+  "hidea on Bluesky": "hideaのBlueskyプロフィール",
+  "RouteVisualizer on GitHub": "GitHubのRouteVisualizerリポジトリ",
+  "Live preview": "ライブプレビュー",
+  "Output figure": "出力図",
+  "Once you load a GPX file, the figure will appear here.": "GPXファイルを読み込むと、ここに図が表示されます。",
+  "Generated section route diagram": "生成された区間ルート図",
+  "Display": "表示",
+  "Fit to screen": "画面内に収める",
+  "Name": "名前",
+  "e.g. Pass, CP1": "例：峠、CP1",
+  "Datetime": "日時",
+  "Latitude/longitude": "緯度・経度",
+  "Display direction": "表示方向",
+  "Distance along route km": "ルート上の距離 km",
+  "Latitude": "緯度",
+  "Longitude": "経度",
+  "Show on elevation profile": "標高プロファイルに表示",
+  "Remove this label": "このラベルを削除",
+  "Drop GPX file(s) here": "ここにGPXファイルをドロップ",
+  "Unable to parse GPX. Please check the XML format.": "GPXを解析できません。XML形式を確認してください。",
+  "At least two valid route points are required.": "有効なルート地点が2点以上必要です。",
+  "Fewer than two route points fall within the specified range. Please widen the trim range.": "指定範囲内のルート地点が2点未満です。範囲を広げてください。",
+  "Please specify both a start and end datetime.": "開始日時と終了日時の両方を指定してください。",
+  "Generating route…": "ルートを生成中…",
+  "Route displayed. Loading background map…": "ルートを表示しました。背景地図を読み込んでいます…",
+  "Route generated. No elevation data, so the elevation profile is omitted.": "ルートを生成しました。標高データがないため標高プロファイルは省略されます。",
+  "Only .gpx files can be dropped here.": ".gpxファイルのみドロップできます。",
+  "To load the bundled sample, please open this via a local server.": "付属サンプルを読み込むには、ローカルサーバー経由で開いてください。",
+  "Generating high-resolution SVG…": "高解像度SVGを生成中…",
+  "SVG saved.": "SVGを保存しました。",
+  "Generating high-resolution PNG…": "高解像度PNGを生成中…",
+  "8-bit grayscale PNG saved.": "8ビットグレースケールPNGを保存しました。",
+  "Layout loaded. GPX range and label content were preserved.": "レイアウトを読み込みました。GPX範囲とラベル内容は保持されています。",
+  "Unable to load layout JSON.": "レイアウトJSONを読み込めません。",
+  "Settings loaded.": "設定を読み込みました。",
+  "Unable to load settings JSON.": "設定JSONを読み込めません。",
+  "Failed to create a canvas for image conversion.": "画像変換用のCanvasを作成できません。",
+  "Failed to parse the SVG used for the text mask.": "テキストマスク用SVGを解析できません。",
+  "This browser does not support grayscale PNG compression. Please use SVG instead.": "このブラウザはグレースケールPNG圧縮に対応していません。SVGを使用してください。",
+  filesSelected: "{{count}}個のファイル：{{names}}",
+  detectedTimeZone: "検出：{{zone}}",
+  detectedTimeZones: "検出：開始 {{start}} / 終了 {{end}}",
+  displayTimeZone: "表示：{{zone}}",
+  invalidTimeZone: "無効なタイムゾーン：{{zone}}",
+  invalidDisplayTimeZone: "無効な表示タイムゾーン：{{zone}}",
+  routeGenerated: "ルートを生成しました。{{points}}地点、{{segments}}セグメント{{excluded}}。",
+  excludedTransport: "、距離から移動区間{{count}}件を除外",
+  multipleGpxMissingTime: "複数GPXファイルの順序を判定できません：{{files}} に時刻データがありません。",
+  pngGenerationFailed: "PNGデータの生成に失敗しました：{{message}}",
+  svgConversionFailed: "SVG描画エンジンによる変換に失敗しました：{{message}}"
+};
+
+const dictionaries = { ja };
+
+export function t(key, values = {}) {
+  const template = dictionaries[locale]?.[key] || key;
+  return template.replace(/\{\{(\w+)\}\}/g, (_, name) => values[name] ?? "");
+}
+
+export function translateElement(root = document) {
+  if (locale === "en") return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    const original = node.nodeValue;
+    const trimmed = original.trim();
+    if (!trimmed || !(trimmed in ja)) return;
+    node.nodeValue = original.replace(trimmed, t(trimmed));
+  });
+  const elements = root.querySelectorAll?.("[placeholder], [aria-label], [title], input[value]") || [];
+  elements.forEach((element) => {
+    ["placeholder", "aria-label", "title", "value"].forEach((attribute) => {
+      const value = element.getAttribute(attribute);
+      if (value && value in ja) element.setAttribute(attribute, t(value));
+    });
+  });
+}
+
+document.documentElement.lang = locale;
+translateElement(document);

@@ -1,5 +1,6 @@
 import { Canvg } from "canvg";
 import tzlookup from "tz-lookup";
+import { t, translateElement } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const ids = [
@@ -146,6 +147,7 @@ function addCustomLabel(label) {
     </div>
     <label class="check"><input class="custom-show-profile" type="checkbox"> Show on elevation profile</label>
     <button class="remove-label" type="button">Remove this label</button>`;
+  translateElement(row);
   row.querySelector(".custom-name").value = label.name || "";
   row.querySelector(".custom-mode").value = label.mode || "distance";
   row.querySelector(".custom-distance").value = label.distance ?? "";
@@ -278,7 +280,9 @@ function parseGpx(text) {
 function combineRouteData(items) {
   const missingTime = items.filter(({ data }) => !data.startTime);
   if (items.length > 1 && missingTime.length) {
-    throw new Error(`Cannot determine the order of multiple GPX files: ${missingTime.map(({ file }) => file.name).join(", ")} have no time data.`);
+    throw new Error(t("multipleGpxMissingTime", {
+      files: missingTime.map(({ file }) => file.name).join(", ")
+    }));
   }
   const ordered = [...items].sort((a, b) => {
     const timeDifference = new Date(a.data.startTime).getTime() - new Date(b.data.startTime).getTime();
@@ -842,7 +846,7 @@ function resolveTimeZone(selection, point) {
     new Intl.DateTimeFormat("ja-JP", { timeZone: selection }).format();
     return selection;
   } catch {
-    throw new Error(`Invalid display time zone: ${selection}`);
+    throw new Error(t("invalidDisplayTimeZone", { zone: selection }));
   }
 }
 
@@ -851,17 +855,17 @@ function updateTimeZoneHint(data) {
   try {
     if (!data?.flat.length) {
       $("detected-time-zone").textContent = selection === "auto"
-        ? "Auto-detect (falls back to Asia/Tokyo if undetectable)"
-        : `Display: ${resolveTimeZone(selection, null)}`;
+        ? t("Auto-detect (falls back to Asia/Tokyo if undetectable)")
+        : t("displayTimeZone", { zone: resolveTimeZone(selection, null) });
       return;
     }
     const startTimeZone = resolveTimeZone(selection, data.flat[0]);
     const endTimeZone = resolveTimeZone(selection, data.flat.at(-1));
     $("detected-time-zone").textContent = startTimeZone === endTimeZone
-      ? `Detected: ${startTimeZone}`
-      : `Detected: start ${startTimeZone} / end ${endTimeZone}`;
+      ? t("detectedTimeZone", { zone: startTimeZone })
+      : t("detectedTimeZones", { start: startTimeZone, end: endTimeZone });
   } catch {
-    $("detected-time-zone").textContent = `Invalid time zone: ${selection}`;
+    $("detected-time-zone").textContent = t("invalidTimeZone", { zone: selection });
   }
 }
 
@@ -1115,11 +1119,15 @@ async function update() {
     const missingElevation = routeData.flat.every((p) => !Number.isFinite(p.ele));
     const excludedTransportCount = routeData.transportLinks?.length || 0;
     const excludedTransportText = excludedTransportCount
-      ? `, excluded ${excludedTransportCount.toLocaleString()} transport segment(s) from distance`
+      ? t("excludedTransport", { count: excludedTransportCount.toLocaleString() })
       : "";
     setStatus(missingElevation
       ? "Route generated. No elevation data, so the elevation profile is omitted."
-      : `Route generated. ${routeData.flat.length.toLocaleString()} points, ${routeData.segments.length} segment(s)${excludedTransportText}.`);
+      : t("routeGenerated", {
+        points: routeData.flat.length.toLocaleString(),
+        segments: routeData.segments.length,
+        excluded: excludedTransportText
+      }));
   } catch (error) {
     if (version !== renderVersion) return;
     setStatus(error.message, true);
@@ -1155,12 +1163,15 @@ async function loadGpxFiles(files) {
     $("clip-time-end").value = toDatetimeLocal(sourceRouteData.endTime);
     const timeOption = $("clip-mode").querySelector('option[value="time"]');
     timeOption.disabled = !sourceRouteData.startTime || !sourceRouteData.endTime;
-    timeOption.textContent = timeOption.disabled ? "Time (no time data)" : "Time";
+    timeOption.textContent = t(timeOption.disabled ? "Time (no time data)" : "Time");
     $("clip-distance-fields").hidden = true;
     $("clip-time-fields").hidden = true;
     $("file-name").textContent = sourceRouteData.fileNames.length === 1
       ? sourceRouteData.fileNames[0]
-      : `${sourceRouteData.fileNames.length} files: ${sourceRouteData.fileNames.join(" → ")}`;
+      : t("filesSelected", {
+        count: sourceRouteData.fileNames.length,
+        names: sourceRouteData.fileNames.join(" → ")
+      });
     updateTimeZoneHint(sourceRouteData);
     await update();
   } catch (error) {
@@ -1171,7 +1182,7 @@ async function loadGpxFiles(files) {
 }
 
 function setStatus(message, error = false) {
-  $("status").textContent = message;
+  $("status").textContent = t(message);
   $("status").classList.toggle("error", error);
 }
 
@@ -1273,7 +1284,7 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
       });
       await renderer.render();
     } catch (error) {
-      throw new Error(`Conversion via the SVG rendering engine failed: ${error.message}`);
+      throw new Error(t("svgConversionFailed", { message: error.message }));
     }
   }
   try {
@@ -1313,7 +1324,7 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
     return new Blob([pngSignature(), pngChunk("IHDR", ihdr(width, height)), pngChunk("pHYs", phys(ppm)), pngChunk("IDAT", compressed), pngChunk("IEND", new Uint8Array())], { type: "image/png" });
   } catch (error) {
     if (error.message?.includes("does not support")) throw error;
-    throw new Error(`Failed to generate PNG data: ${error.message}`);
+    throw new Error(t("pngGenerationFailed", { message: error.message }));
   }
 }
 
@@ -1353,7 +1364,7 @@ let gpxDragDepth = 0;
 
 function setGpxDragover(active) {
   gpxDropZone.classList.toggle("is-dragover", active);
-  gpxDropLabel.textContent = active ? "Drop GPX file(s) here" : defaultGpxDropLabel;
+  gpxDropLabel.textContent = active ? t("Drop GPX file(s) here") : defaultGpxDropLabel;
 }
 
 gpxDropZone.addEventListener("dragenter", (event) => {
@@ -1399,7 +1410,9 @@ ids.forEach((id) => $(id).addEventListener("input", update));
 const marginFieldIds = ["margin-top", "margin-right", "margin-bottom", "margin-left"];
 function setMarginLinked(linked, syncValue = false) {
   $("margin-link").setAttribute("aria-pressed", String(linked));
-  $("margin-link").title = linked ? "Unlink margin values" : "Link margin values";
+  const actionLabel = t(linked ? "Unlink margin values" : "Link margin values");
+  $("margin-link").title = actionLabel;
+  $("margin-link").setAttribute("aria-label", actionLabel);
   if (linked && syncValue) {
     const value = $("margin-top").value;
     marginFieldIds.forEach((id) => { $(id).value = value; });

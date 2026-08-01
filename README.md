@@ -13,6 +13,7 @@ npm run dev
 ```
 
 Open the local URL shown in your browser. GPX files are processed entirely in the browser and are never sent externally.
+The interface is displayed in Japanese when the browser's preferred language is Japanese, and in English otherwise.
 
 Build and preview a production version:
 
