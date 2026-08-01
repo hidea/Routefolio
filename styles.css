@@ -50,12 +50,14 @@
 .sidebar-brand p {
   @apply mt-1.5 mb-0 text-[.69rem] leading-[1.45] text-muted;
 }
-.social-links { @apply mt-3 flex gap-1 border-t border-line pt-3; }
+.sidebar-footer { @apply mt-3 border-t border-line pt-3; }
+.social-links { @apply flex gap-1; }
 .social-links a {
   @apply grid size-[30px] place-items-center rounded-full text-muted hover:bg-[#ece9df] hover:text-ink;
 }
 .social-links svg { width: 16px; height: 16px; @apply shrink-0 fill-current; }
 .social-links a:focus-visible { @apply outline-3 outline-offset-2 outline-focus; }
+.copyright { @apply mt-2 mb-0 text-[.62rem] leading-[1.5] text-muted; }
 .controls section, .controls > details { @apply p-0; }
 .controls h2 { @apply mt-0 mb-3.5 text-[.78rem] font-semibold tracking-[.12em]; }
 .field-grid { @apply grid grid-cols-2 gap-3 max-[420px]:grid-cols-1; }

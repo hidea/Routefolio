@@ -44,3 +44,7 @@ The actual project ID is not hard-coded into the repository. Select it locally v
 ## Implementation limitations
 
 The background map can be hidden via settings. External elevation interpolation and individual drag-editing of place labels are out of scope.
+
+## Copyright
+
+Copyright (C) rukari.com All Right Reserved
