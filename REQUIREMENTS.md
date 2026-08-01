@@ -1,113 +1,109 @@
-# Route Visualizer 要件定義
+# Route Visualizer Requirements
 
-## 1. 目的
+## 1. Purpose
 
-`resources/ルートサンプル.png` に相当する、モノクロの地形ルート図をブラウザで生成する。太い経路線、地形線、進行方向、地点名、距離・獲得標高、標高プロファイルを一枚の画像へまとめる。
+Generate, in the browser, a monochrome terrain route diagram in the style of a printed route map. Combine a bold route line, terrain lines, direction of travel, place names, distance/elevation gain, and an elevation profile into a single image.
 
-## 2. 今回の要件根拠
+## 2. Basis for this requirement set
 
-- `resources/ルートサンプル.png`
-- アプリ名は `Route Visualizer`
-- 独立した `Route Visualizer` フォルダに構築する
-- Firebase Hosting等の静的ホスティングへ公開できる
+- The app name is `Route Visualizer`
+- Publishable to static hosting such as Firebase Hosting
 
-`tasks/gpx-route-profile-tool-implementation-brief.md` は今回の要件に使用しない。
+## 3. Expected usage flow
 
-## 3. 想定利用フロー
+1. Choose a GPX file. If a name exists inside the GPX, adopt it automatically as the section name.
+2. If needed, trim the route range used, by distance or by time.
+3. Edit the section name, start-point name, and finish-point name as needed. If a section number etc. is required, include it in the section name.
+4. For the heading block (place names, section name with distance/elevation gain) and the elevation profile, choose each one's placement from top/bottom/left/right.
+5. Adjust image size, DPI, line width, etc.
+6. Check the result in the live preview.
+7. Save as PNG or SVG.
+8. Save and reload settings as JSON.
 
-1. GPXファイルを選ぶ。GPX内に名称があれば区間名へ自動採用する。
-2. 必要に応じて、使用する経路範囲を距離または時刻で切り出す。
-3. 区間名・始点名・終点名を必要に応じて編集する。区間番号等が必要な場合は区間名に含める。
-4. 地点名、区間名と距離・獲得標高をまとめた見出しブロック、標高プロファイルについて、それぞれの配置場所を上下左右から選ぶ。
-5. 画像サイズ、DPI、線幅等を調整する。
-6. 即時プレビューで仕上がりを確認する。
-7. PNGまたはSVGで保存する。
-8. 設定をJSONで保存・再読込する。
+## 4. Elements included in the image
 
-## 4. 画像に含める要素
+- Position chosen by the user (top/bottom/left/right): a large section name with distance/elevation gain directly beneath it
+- Center: a bold black line showing the GPX route
+- On the route: arrows indicating direction of travel
+- Bottom left: a scale bar corresponding to the current map zoom level
+- Start point, finish point, waypoints: symbol, name, elevation. The placement direction of place names can be chosen
+- Background: a monochrome terrain background fetched from a public map
+- The background map fills the entire output image with no margins
+- Position chosen by the user (top/bottom/left/right): an elevation profile keyed to distance
+- Overall: high-contrast expression using white, black, and gray
 
-- 利用者が選択した上下左右の位置: 大きな区間名と、その直下の距離・獲得標高
-- 中央: GPX経路を示す太い黒線
-- 経路上: 進行方向を示す矢印
-- 左下: 現在の地図倍率に対応する縮尺記号
-- 始点・終点・ウェイポイント: 記号、名称、標高。地点名の配置方向を選択できる
-- 背景: 公開マップから取得するモノクロの地形背景
-- 背景地図は余白を残さず、出力画像の全面へ表示する
-- 利用者が選択した上下左右の位置: 距離に対応した標高プロファイル
-- 全体: 白・黒・グレーによる高コントラスト表現
+## 5. Functional requirements
 
-## 5. 機能要件
+- Load `trk/trkseg/trkpt` and `rte/rtept` as the route.
+- Load `wpt` as named points.
+- Compute distance from latitude/longitude.
+- If elevation is present in the GPX, compute the elevation profile and elevation gain.
+- If timestamps are present in the GPX, the first and last valid timestamps can be shown as the start and end datetime.
+- The display of start/end datetime can be toggled together.
+- Start/end datetime omit the year and show month, day, hour, and minute.
+- Start and end datetime are shown on a single line, with no leading zero on the hour.
+- Distance and elevation gain are laid out as "label, value, unit", with only the value shown large.
+- The text size of the entire heading block (section name, distance/elevation gain, start/end datetime) can be changed from 50% to 200%.
+- The start-point and finish-point names are shown at roughly the same text size as the distance value at 100% heading size.
+- The GPX name is adopted as the section name, in priority order of `trk/name`, `rte/name`, `metadata/name`.
+- The range used can be chosen from the entire GPX, start/end distance (km), or start/end time.
+- After trimming, recompute distance, elevation gain, datetime, and the elevation profile using only the trimmed route.
+- Additional labels other than start/finish can be placed by distance along the route, by datetime, or by latitude/longitude.
+- Each additional label has a configurable name and display direction, and can be added or removed.
+- Additional labels placed by distance or datetime show the elevation of the corresponding GPX point.
+- Additional labels are saved to and reloaded from the settings JSON.
+- Multiple track segments are drawn as separate lines.
+- Output width, height, and DPI can be configured.
+- The line widths of the route and the elevation profile can each be configured.
+- The size of the direction-of-travel arrows can be configured.
+- The display position can be offset horizontally and vertically while keeping the route and background map aligned.
+- The scale bar is calculated automatically from the GPX center latitude and the map zoom level, and displayed.
+- The placement direction of place names can be chosen from top/bottom/left/right.
+- The placement of the distance/elevation-gain block can be chosen from top/bottom/left/right.
+- The placement of the elevation profile can be chosen from top/bottom/left/right.
+- The background map, elevation profile, and waypoints can each be toggled on or off.
+- Fetch a background map around the route from a public map service.
+- If the route is within Japan, use the Geospatial Information Authority of Japan (GSI) map as the background.
+- If the route is outside Japan, use OpenStreetMap as the background.
+- Comply with the background map's attribution and terms of use.
+- Save as SVG and PNG.
+- Save and load settings as JSON.
+- Process GPX data entirely within the browser; never send it to a server.
 
-- `trk/trkseg/trkpt` と `rte/rtept` を経路として読み込む。
-- `wpt` を名前付き地点として読み込む。
-- 緯度経度から距離を計算する。
-- GPX内に標高があれば標高図と獲得標高を計算する。
-- GPX内に時刻があれば、先頭と末尾の有効時刻を開始日時・終了日時として表示できる。
-- 開始日時・終了日時の表示をまとめて切り替えられる。
-- 開始日時・終了日時は年を省略し、月日と時分を表示する。
-- 開始日時と終了日時は横一行に並べ、時の先頭ゼロは表示しない。
-- 距離・獲得標高は「ラベル・数値・単位」の順で組み、数値だけを大きく表示する。
-- 区間名、距離・獲得標高、開始・終了日時からなる見出しブロック全体の文字サイズを50〜200%で変更できる。
-- 始点名・終点名は、見出しサイズ100%時の距離数値と同程度の文字サイズで表示する。
-- GPXの名称は `trk/name`、`rte/name`、`metadata/name` の優先順で区間名へ採用する。
-- GPX全体、開始・終了距離（km）、開始・終了時刻のいずれかで使用範囲を選べる。
-- 切り出し後の経路だけを使って距離、獲得標高、日時、標高図を再計算する。
-- 始点・終点以外の追加ラベルを、ルート上の距離、日時、または緯度・経度で配置できる。
-- 追加ラベルごとに名称と表示方向を設定し、追加・削除できる。
-- 距離・日時で配置した追加ラベルには、対応するGPX地点の標高を表示する。
-- 追加ラベルは設定JSONへ保存し、再読込できる。
-- 複数トラックセグメントは別々の線として描く。
-- 出力幅、高さ、DPIを設定できる。
-- 経路線と標高図の線幅をそれぞれ設定できる。
-- 進行方向矢印のサイズを設定できる。
-- 経路と背景地図の整合を保ったまま、表示位置を横・縦方向へオフセットできる。
-- GPX中心緯度と地図倍率から縮尺記号を自動計算して表示する。
-- 地点名の配置方向を上下左右から選択できる。
-- 距離・獲得標高ブロックの配置場所を上下左右から選択できる。
-- 標高プロファイルの配置場所を上下左右から選択できる。
-- 背景地図、標高図、ウェイポイントの表示を切り替えられる。
-- 公開マップから経路周辺の背景地図を取得する。
-- ルートが日本国内にある場合、背景地図には国土地理院の地理院地図を使用する。
-- ルートが日本国外にある場合、背景地図にはOpenStreetMapを使用する。
-- 背景地図の出典表記と利用条件を守る。
-- SVGとPNGを保存できる。
-- 設定JSONを保存・読込できる。
-- GPXデータはブラウザ内で処理し、サーバーへ送信しない。
+## 6. UI requirements
 
-## 6. UI要件
+- On desktop, place settings on the left and a large preview on the right.
+- In the desktop split view, keep the right-side preview pinned to the top of the screen while the settings panel scrolls.
+- On narrow screens, stack settings and preview vertically.
+- Label every input field and support keyboard operation.
+- Show GPX parsing errors and missing-elevation warnings in the browser's UI.
 
-- デスクトップでは左に設定、右に大きなプレビューを置く。
-- デスクトップの左右分割表示では、設定をスクロールしても右側プレビューを画面上部へ固定する。
-- 狭い画面では設定とプレビューを縦に並べる。
-- 全入力欄にラベルを付け、キーボード操作に対応する。
-- GPXの解析エラーや標高欠損を日本語で表示する。
+## 7. Publishing requirements
 
-## 7. 公開要件
+- Whether or not there is a build step does not matter.
+- Bundle `firebase.json` so the project can be published to Firebase Hosting.
+- Do not hard-code a Firebase project ID; let the publisher choose it.
+- Include security headers in the Hosting configuration.
 
-- ビルド工程の有無は問わない。
-- `firebase.json` を同梱し、Firebase Hostingへ公開できる。
-- FirebaseプロジェクトIDは固定せず、公開者が選択する。
-- セキュリティヘッダーをHosting設定へ含める。
+## 8. Initial-version assumptions
 
-## 8. 初期版の前提
+- The background map is fetched from a public map service; no generated decorative pattern is used.
+- The background map can be hidden via settings.
+- Routes within Japan use the GSI map.
+- Confirm and implement GSI's image output conditions, usage limits, required attribution, and browser fetch method.
+- Routes outside Japan use OpenStreetMap.
+- Confirm and implement OpenStreetMap's tile usage terms, required copyright notice, usage limits, and image output method.
 
-- 背景地図は公開マップから取得し、生成した装飾パターンは使用しない。
-- 背景地図は設定で非表示にできる。
-- 日本国内のルートには国土地理院の地理院地図を使用する。
-- 地理院地図の画像出力条件、利用上限、必要な出典表記、ブラウザからの取得方法を確認して実装する。
-- 日本国外のルートにはOpenStreetMapを使用する。
-- OpenStreetMapのタイル利用条件、必要な著作権表示、利用上限、画像出力方法を確認して実装する。
+## 9. Acceptance criteria
 
-## 9. 受入条件
-
-- 同梱GPXからルート図と標高図が表示される。
-- 公開マップから取得した背景上に経路が正しい位置で重なる。
-- 地点名、距離・獲得標高ブロック、標高プロファイルを指定した上下左右へ配置できる。
-- 背景地図が出力画像の全面を覆う。
-- 標高図のY軸に100m単位のきりのよい間隔で4目盛を表示する。
-- 標高図のX軸に0kmを含む、10km単位のきりのよい間隔で5目盛を表示する。
-- 標高線は切り出し後の全距離を標高図の横幅いっぱいに使用して描画する。
-- 標高図の線幅と進行方向矢印のサイズを変更できる。
-- サンプル画像と同様に、太い経路線・背景地図・進行方向・地点注記・標高図が一枚に収まる。
-- 指定した画素数でPNGを保存できる。
-- Firebase Hosting Emulatorで配信できる。
+- The bundled GPX produces a visible route diagram and elevation profile.
+- The route overlays correctly, at the right position, on the background fetched from the public map.
+- Place names, the distance/elevation-gain block, and the elevation profile can each be placed at the specified top/bottom/left/right position.
+- The background map covers the entire output image.
+- The elevation profile's Y-axis shows 4 ticks at clean 100 m intervals.
+- The elevation profile's X-axis shows 5 ticks at clean 10 km intervals, including 0 km.
+- The elevation line is drawn using the full trimmed distance across the full width of the elevation profile.
+- The elevation profile's line width and the direction-arrow size can be changed.
+- As in the sample image, the bold route line, background map, direction of travel, place annotations, and elevation profile all fit within a single image.
+- PNG can be saved at the specified pixel dimensions.
+- Can be served via the Firebase Hosting Emulator.

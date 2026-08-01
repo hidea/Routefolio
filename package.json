@@ -2,7 +2,7 @@
   "name": "route-visualizer",
   "version": "1.0.0",
   "private": true,
-  "description": "GPXから書籍用のモノクロ区間経路図を生成するWebアプリ",
+  "description": "Web app that generates a monochrome section route diagram for print from a GPX file",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5005",
     "build": "vite build",

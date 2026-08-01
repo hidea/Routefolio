@@ -31,7 +31,7 @@ const state = () => {
   return {
     sizeMode, width, height, dpi,
     widthMm: width / dpi * 25.4, heightMm: height / dpi * 25.4,
-    sectionTitle: $("section-title").value.trim() || "ルート",
+    sectionTitle: $("section-title").value.trim() || "Route",
     startName: $("start-name").value.trim(),
     finishName: $("finish-name").value.trim(),
     marginPercent: clamp(Number($("margin-percent").value), 3, 20),
@@ -114,31 +114,31 @@ function addCustomLabel(label) {
   row.className = "custom-label-row";
   row.innerHTML = `
     <div class="field-grid">
-      <label class="wide">名称<input class="custom-name" type="text" placeholder="例：峠、CP1"></label>
-      <label>指定方法
+      <label class="wide">Name<input class="custom-name" type="text" placeholder="e.g. Pass, CP1"></label>
+      <label>Specify by
         <select class="custom-mode">
-          <option value="distance">距離</option>
-          <option value="time">日時</option>
-          <option value="coordinate">緯度・経度</option>
+          <option value="distance">Distance</option>
+          <option value="time">Datetime</option>
+          <option value="coordinate">Latitude/longitude</option>
         </select>
       </label>
-      <label>表示方向
+      <label>Display direction
         <select class="custom-position">
-          <option value="top">上</option><option value="top-right">右上</option>
-          <option value="right">右</option><option value="bottom-right">右下</option>
-          <option value="bottom">下</option><option value="bottom-left">左下</option>
-          <option value="left">左</option><option value="top-left">左上</option>
+          <option value="top">Top</option><option value="top-right">Top right</option>
+          <option value="right">Right</option><option value="bottom-right">Bottom right</option>
+          <option value="bottom">Bottom</option><option value="bottom-left">Bottom left</option>
+          <option value="left">Left</option><option value="top-left">Top left</option>
         </select>
       </label>
     </div>
-    <div class="custom-distance-fields"><label>ルート上の距離 km<input class="custom-distance" type="number" min="0" step="0.1"></label></div>
-    <div class="custom-time-fields" hidden><label>日時<input class="custom-time" type="datetime-local"></label></div>
+    <div class="custom-distance-fields"><label>Distance along route km<input class="custom-distance" type="number" min="0" step="0.1"></label></div>
+    <div class="custom-time-fields" hidden><label>Datetime<input class="custom-time" type="datetime-local"></label></div>
     <div class="custom-coordinate-fields field-grid" hidden>
-      <label>緯度<input class="custom-lat" type="number" min="-90" max="90" step="0.000001"></label>
-      <label>経度<input class="custom-lon" type="number" min="-180" max="180" step="0.000001"></label>
+      <label>Latitude<input class="custom-lat" type="number" min="-90" max="90" step="0.000001"></label>
+      <label>Longitude<input class="custom-lon" type="number" min="-180" max="180" step="0.000001"></label>
     </div>
-    <label class="check"><input class="custom-show-profile" type="checkbox"> 標高図に表示</label>
-    <button class="remove-label" type="button">このラベルを削除</button>`;
+    <label class="check"><input class="custom-show-profile" type="checkbox"> Show on elevation profile</label>
+    <button class="remove-label" type="button">Remove this label</button>`;
   row.querySelector(".custom-name").value = label.name || "";
   row.querySelector(".custom-mode").value = label.mode || "distance";
   row.querySelector(".custom-distance").value = label.distance ?? "";
@@ -183,7 +183,7 @@ function setCustomLabels(labels = []) {
 
 function parseGpx(text) {
   const xml = new DOMParser().parseFromString(text, "application/xml");
-  if (xml.querySelector("parsererror")) throw new Error("GPXを解析できません。XML形式を確認してください。");
+  if (xml.querySelector("parsererror")) throw new Error("Unable to parse GPX. Please check the XML format.");
 
   const nodePoints = (nodes) => [...nodes].map((node) => {
     const lat = Number(node.getAttribute("lat"));
@@ -205,7 +205,7 @@ function parseGpx(text) {
       .map((rte) => nodePoints(rte.getElementsByTagNameNS("*", "rtept")))
       .filter((seg) => seg.length);
   }
-  if (segments.flat().length < 2) throw new Error("有効な経路点が2点以上必要です。");
+  if (segments.flat().length < 2) throw new Error("At least two valid route points are required.");
 
   let profileCumulative = 0;
   segments.forEach((segment) => {
@@ -242,7 +242,7 @@ function parseGpx(text) {
     const point = nodePoints([node])[0];
     if (!point) return null;
     const nameNode = [...node.children].find((child) => child.localName === "name");
-    return { ...point, name: nameNode?.textContent.trim() || "地点" };
+    return { ...point, name: nameNode?.textContent.trim() || "Point" };
   }).filter(Boolean);
 
   let cumulative = 0;
@@ -271,7 +271,7 @@ function parseGpx(text) {
 function combineRouteData(items) {
   const missingTime = items.filter(({ data }) => !data.startTime);
   if (items.length > 1 && missingTime.length) {
-    throw new Error(`複数GPXの並び順を判断できません：${missingTime.map(({ file }) => file.name).join("、")} に時刻データがありません。`);
+    throw new Error(`Cannot determine the order of multiple GPX files: ${missingTime.map(({ file }) => file.name).join(", ")} have no time data.`);
   }
   const ordered = [...items].sort((a, b) => {
     const timeDifference = new Date(a.data.startTime).getTime() - new Date(b.data.startTime).getTime();
@@ -347,7 +347,7 @@ function derivedRouteData(source, predicate) {
   const segments = source.segments
     .map((segment) => segment.filter(predicate).map((point) => ({ ...point })))
     .filter((segment) => segment.length >= 2);
-  if (!segments.length) throw new Error("指定範囲に経路点が2点以上ありません。切り出し範囲を広げてください。");
+  if (!segments.length) throw new Error("Fewer than two route points fall within the specified range. Please widen the trim range.");
 
   let cumulative = 0;
   const flat = [];
@@ -433,7 +433,7 @@ async function applyClip() {
     } else if (mode === "time") {
       const start = new Date($("clip-time-start").value).getTime();
       const end = new Date($("clip-time-end").value).getTime();
-      if (!Number.isFinite(start) || !Number.isFinite(end)) throw new Error("開始日時と終了日時を指定してください。");
+      if (!Number.isFinite(start) || !Number.isFinite(end)) throw new Error("Please specify both a start and end datetime.");
       routeData = derivedRouteData(sourceRouteData, (point) => {
         const time = point.time ? new Date(point.time).getTime() : NaN;
         return Number.isFinite(time) && time >= start && time <= end;
@@ -717,16 +717,16 @@ async function generateSvg(data, s, renderData = data) {
   const startTimeZone = resolveTimeZone(s.timeZone, data.flat[0]);
   const endTimeZone = resolveTimeZone(s.timeZone, data.flat.at(-1));
   if (s.showDatetime && data.startTime && data.endTime) {
-    dateLines.push(`開始 ${formatGpxTime(data.startTime, startTimeZone)}　終了 ${formatGpxTime(data.endTime, endTimeZone)}`);
+    dateLines.push(`Start ${formatGpxTime(data.startTime, startTimeZone)}  Finish ${formatGpxTime(data.endTime, endTimeZone)}`);
   } else if (s.showDatetime && data.startTime) {
-    dateLines.push(`開始 ${formatGpxTime(data.startTime, startTimeZone)}`);
+    dateLines.push(`Start ${formatGpxTime(data.startTime, startTimeZone)}`);
   } else if (s.showDatetime && data.endTime) {
-    dateLines.push(`終了 ${formatGpxTime(data.endTime, endTimeZone)}`);
+    dateLines.push(`Finish ${formatGpxTime(data.endTime, endTimeZone)}`);
   }
   const info = infoBlockPosition(s.metaPosition, w, h, margin, infoFs, 1 + dateLines.length);
   const distanceValue = (data.totalDistance / 1000).toFixed(1);
   const metricText = `<text x="${info.x}" y="${info.metaY}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .18}">
-    距離 <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `　獲得標高 <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
+    Distance <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `  Elevation gain <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
   </text>`;
   const dateTexts = dateLines.map((line, index) =>
     `<text x="${info.x}" y="${info.metaY + (index + 1) * infoFs * .78}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .16}">${esc(line)}</text>`
@@ -736,8 +736,8 @@ async function generateSvg(data, s, renderData = data) {
     ? 'shape-rendering="geometricPrecision" text-rendering="optimizeLegibility"'
     : 'shape-rendering="crispEdges" text-rendering="optimizeSpeed"';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ${renderingHints} role="img" aria-labelledby="svg-title svg-desc">
-  <title id="svg-title">${esc(s.sectionTitle)} 経路図</title>
-  <desc id="svg-desc">距離 ${(data.totalDistance / 1000).toFixed(1)} kmの経路と標高推移</desc>
+  <title id="svg-title">${esc(s.sectionTitle)} route diagram</title>
+  <desc id="svg-desc">Route of ${(data.totalDistance / 1000).toFixed(1)} km with elevation profile</desc>
   <defs><filter id="map-gray"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".55" intercept=".42"/><feFuncG type="linear" slope=".55" intercept=".42"/><feFuncB type="linear" slope=".55" intercept=".42"/></feComponentTransfer></filter></defs>
   <rect width="${w}" height="${h}" fill="#fff"/>
   ${background.svg}
@@ -832,7 +832,7 @@ function resolveTimeZone(selection, point) {
     new Intl.DateTimeFormat("ja-JP", { timeZone: selection }).format();
     return selection;
   } catch {
-    throw new Error(`表示タイムゾーンが正しくありません：${selection}`);
+    throw new Error(`Invalid display time zone: ${selection}`);
   }
 }
 
@@ -841,17 +841,17 @@ function updateTimeZoneHint(data) {
   try {
     if (!data?.flat.length) {
       $("detected-time-zone").textContent = selection === "auto"
-        ? "自動判定（判定できない場合は Asia/Tokyo）"
-        : `表示：${resolveTimeZone(selection, null)}`;
+        ? "Auto-detect (falls back to Asia/Tokyo if undetectable)"
+        : `Display: ${resolveTimeZone(selection, null)}`;
       return;
     }
     const startTimeZone = resolveTimeZone(selection, data.flat[0]);
     const endTimeZone = resolveTimeZone(selection, data.flat.at(-1));
     $("detected-time-zone").textContent = startTimeZone === endTimeZone
-      ? `判定結果：${startTimeZone}`
-      : `判定結果：開始 ${startTimeZone}／終了 ${endTimeZone}`;
+      ? `Detected: ${startTimeZone}`
+      : `Detected: start ${startTimeZone} / end ${endTimeZone}`;
   } catch {
-    $("detected-time-zone").textContent = `無効なタイムゾーン：${selection}`;
+    $("detected-time-zone").textContent = `Invalid time zone: ${selection}`;
   }
 }
 
@@ -919,11 +919,11 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
     }
   }));
   const loaded = rendered.filter(Boolean);
-  const attribution = source === "gsi" ? "出典：国土地理院「地理院タイル」" : "© OpenStreetMap contributors";
+  const attribution = source === "gsi" ? "Source: GSI Tiles (Geospatial Information Authority of Japan)" : "© OpenStreetMap contributors";
   if (!loaded.length) {
     return {
       svg: "",
-      attribution: `${attribution}（背景地図を取得できませんでした）`,
+      attribution: `${attribution} (failed to fetch background map)`,
       failed: true
     };
   }
@@ -937,7 +937,7 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
 async function tileDataUrl(url) {
   if (tileCache.has(url)) return tileCache.get(url);
   const promise = fetch(url).then(async (response) => {
-    if (!response.ok) throw new Error(`地図タイル ${response.status}`);
+    if (!response.ok) throw new Error(`Map tile ${response.status}`);
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1084,7 +1084,7 @@ async function update() {
   $("size-summary").value = `${s.width.toLocaleString()} × ${s.height.toLocaleString()} px\n${s.widthMm.toFixed(1)} × ${s.heightMm.toFixed(1)} mm（${s.dpi} DPI）`;
   if (!routeData) return;
   try {
-    setStatus("経路を生成しています…");
+    setStatus("Generating route…");
     const previewData = previewRouteData(routeData);
     if (s.showMap) {
       const provisionalSvg = await generateSvg(routeData, { ...s, showMap: false }, previewData);
@@ -1094,7 +1094,7 @@ async function update() {
       $("empty-preview").hidden = true;
       $("download-png").disabled = false;
       $("download-svg").disabled = false;
-      setStatus("経路を表示しました。背景地図を読み込んでいます…");
+      setStatus("Route displayed. Loading background map…");
     }
     const svg = await generateSvg(routeData, s, previewData);
     if (version !== renderVersion) return;
@@ -1106,11 +1106,11 @@ async function update() {
     const missingElevation = routeData.flat.every((p) => !Number.isFinite(p.ele));
     const excludedTransportCount = routeData.transportLinks?.length || 0;
     const excludedTransportText = excludedTransportCount
-      ? `、移動区間${excludedTransportCount.toLocaleString()}件を距離から除外`
+      ? `, excluded ${excludedTransportCount.toLocaleString()} transport segment(s) from distance`
       : "";
     setStatus(missingElevation
-      ? "経路を生成しました。標高データがないため標高図は省略されます。"
-      : `経路を生成しました。${routeData.flat.length.toLocaleString()}点、${routeData.segments.length}セグメント${excludedTransportText}。`);
+      ? "Route generated. No elevation data, so the elevation profile is omitted."
+      : `Route generated. ${routeData.flat.length.toLocaleString()} points, ${routeData.segments.length} segment(s)${excludedTransportText}.`);
   } catch (error) {
     if (version !== renderVersion) return;
     setStatus(error.message, true);
@@ -1138,12 +1138,12 @@ async function loadGpxFiles(files) {
     $("clip-time-end").value = toDatetimeLocal(sourceRouteData.endTime);
     const timeOption = $("clip-mode").querySelector('option[value="time"]');
     timeOption.disabled = !sourceRouteData.startTime || !sourceRouteData.endTime;
-    timeOption.textContent = timeOption.disabled ? "時刻（時刻データなし）" : "時刻";
+    timeOption.textContent = timeOption.disabled ? "Time (no time data)" : "Time";
     $("clip-distance-fields").hidden = true;
     $("clip-time-fields").hidden = true;
     $("file-name").textContent = sourceRouteData.fileNames.length === 1
       ? sourceRouteData.fileNames[0]
-      : `${sourceRouteData.fileNames.length}ファイル：${sourceRouteData.fileNames.join(" → ")}`;
+      : `${sourceRouteData.fileNames.length} files: ${sourceRouteData.fileNames.join(" → ")}`;
     updateTimeZoneHint(sourceRouteData);
     await update();
   } catch (error) {
@@ -1159,7 +1159,7 @@ function setStatus(message, error = false) {
 }
 
 function filename(s, extension) {
-  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "ルート";
+  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "Route";
   return `${safeTitle}_${s.width}x${s.height}_${s.dpi}dpi.${extension}`;
 }
 
@@ -1177,7 +1177,7 @@ async function rasterizeSvg(svg, width, height, contextOptions = {}) {
   canvas.width = width;
   canvas.height = height;
   const ctx = canvas.getContext("2d", contextOptions);
-  if (!ctx) throw new Error("画像変換用のCanvasを作成できませんでした。");
+  if (!ctx) throw new Error("Failed to create a canvas for image conversion.");
   const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
   try {
     const image = new Image();
@@ -1192,7 +1192,7 @@ async function rasterizeSvg(svg, width, height, contextOptions = {}) {
 
 async function textMask(svg, width, height, includeStroke) {
   const xml = new DOMParser().parseFromString(svg, "image/svg+xml");
-  if (xml.querySelector("parsererror")) throw new Error("文字マスク用SVGを解析できませんでした。");
+  if (xml.querySelector("parsererror")) throw new Error("Failed to parse the SVG used for the text mask.");
   const keep = new Set(["svg", "g", "text", "tspan"]);
   [...xml.querySelectorAll("*")].reverse().forEach((element) => {
     if (!keep.has(element.localName)) element.remove();
@@ -1219,7 +1219,7 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
-  if (!ctx) throw new Error("画像変換用のCanvasを作成できませんでした。");
+  if (!ctx) throw new Error("Failed to create a canvas for image conversion.");
   ctx.imageSmoothingEnabled = antialias;
   if (antialias && "imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
   ctx.fillStyle = "#fff";
@@ -1256,7 +1256,7 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
       });
       await renderer.render();
     } catch (error) {
-      throw new Error(`SVG描画エンジンでの変換に失敗しました：${error.message}`);
+      throw new Error(`Conversion via the SVG rendering engine failed: ${error.message}`);
     }
   }
   try {
@@ -1289,14 +1289,14 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
         raw[row + 1 + x] = Math.round(rgba[i] * .2126 + rgba[i + 1] * .7152 + rgba[i + 2] * .0722);
       }
     }
-    if (!("CompressionStream" in window)) throw new Error("このブラウザはグレースケールPNG圧縮に対応していません。SVGをご利用ください。");
+    if (!("CompressionStream" in window)) throw new Error("This browser does not support grayscale PNG compression. Please use SVG instead.");
     const stream = new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"));
     const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
     const ppm = Math.round(dpi / .0254);
     return new Blob([pngSignature(), pngChunk("IHDR", ihdr(width, height)), pngChunk("pHYs", phys(ppm)), pngChunk("IDAT", compressed), pngChunk("IEND", new Uint8Array())], { type: "image/png" });
   } catch (error) {
-    if (error.message?.includes("対応していません")) throw error;
-    throw new Error(`PNGデータの生成に失敗しました：${error.message}`);
+    if (error.message?.includes("does not support")) throw error;
+    throw new Error(`Failed to generate PNG data: ${error.message}`);
   }
 }
 
@@ -1336,7 +1336,7 @@ async function loadSample() {
     const blob = await response.blob();
     await loadGpxFiles([new File([blob], "sample.gpx", { type: "application/gpx+xml" })]);
   } catch {
-    setStatus("同梱サンプルを読むにはローカルサーバーで開いてください。", true);
+    setStatus("To load the bundled sample, please open this via a local server.", true);
   }
 }
 $("load-sample").addEventListener("click", loadSample);
@@ -1357,10 +1357,10 @@ document.querySelectorAll('input[name="size-mode"]').forEach((input) => input.ad
 $("download-svg").addEventListener("click", async () => {
   const s = state();
   try {
-    setStatus("高精細SVGを生成しています…");
+    setStatus("Generating high-resolution SVG…");
     const exportSvg = await generateSvg(routeData, s);
     downloadBlob(new Blob([exportSvg], { type: "image/svg+xml;charset=utf-8" }), filename(s, "svg"));
-    setStatus("SVGを保存しました。");
+    setStatus("SVG saved.");
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -1368,19 +1368,19 @@ $("download-svg").addEventListener("click", async () => {
 $("download-png").addEventListener("click", async () => {
   const s = state();
   try {
-    setStatus("高精細PNGを生成しています…");
+    setStatus("Generating high-resolution PNG…");
     const exportSvg = await generateSvg(routeData, s);
     const blob = await svgToGrayscalePng(exportSvg, s.width, s.height, s.dpi, s.antialias);
     downloadBlob(blob, filename(s, "png"));
-    setStatus("8bitグレースケールPNGを保存しました。");
+    setStatus("8-bit grayscale PNG saved.");
   } catch (error) {
     setStatus(error.message, true);
   }
 });
 $("save-settings").addEventListener("click", () => {
   const s = state();
-  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "ルート";
-  downloadBlob(new Blob([JSON.stringify(s, null, 2)], { type: "application/json" }), `${safeTitle}_設定.json`);
+  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "Route";
+  downloadBlob(new Blob([JSON.stringify(s, null, 2)], { type: "application/json" }), `${safeTitle}_settings.json`);
 });
 $("settings-file").addEventListener("change", async (event) => {
   try {
@@ -1422,9 +1422,9 @@ $("settings-file").addEventListener("change", async (event) => {
     document.querySelector(`input[name="size-mode"][value="${mode}"]`).click();
     if (sourceRouteData) applyClip();
     else update();
-    setStatus("設定を読み込みました。");
+    setStatus("Settings loaded.");
   } catch {
-    setStatus("設定JSONを読み込めません。", true);
+    setStatus("Unable to load settings JSON.", true);
   }
 });
 $("fit-preview").addEventListener("click", () => $("preview").scrollIntoView({ behavior: "smooth", block: "center" }));

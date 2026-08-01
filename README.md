@@ -1,31 +1,31 @@
 # Route Visualizer
 
-GPXから、太い経路線、進行方向、地点注記、背景地図、標高図を備えたモノクロのルート画像を生成するWebアプリです。
+A web app that generates a monochrome route image from a GPX file, complete with a bold route line, direction of travel, place annotations, background map, and elevation profile.
 
-日本国内では国土地理院の淡色地図、国外ではOpenStreetMapを背景に使用します。出典は画面と保存画像の双方に表示されます。
+Within Japan it uses the GSI (Geospatial Information Authority of Japan) pale-color map as the background; outside Japan it uses OpenStreetMap. Attribution is shown both on screen and in the saved image.
 
-## 起動
+## Getting started
 
-このディレクトリで次を実行します。
+Run the following in this directory:
 
 ```sh
 npm run dev
 ```
 
-表示されたローカルURLをブラウザで開きます。GPXはブラウザ内だけで処理され、外部へ送信されません。
+Open the local URL shown in your browser. GPX files are processed entirely in the browser and are never sent externally.
 
-本番用ファイルの生成と確認:
+Build and preview a production version:
 
 ```sh
 npm run build
 npm run preview
 ```
 
-## Firebase Hostingへ公開
+## Publishing to Firebase Hosting
 
-1. Firebase CLIへログインします。
-2. このフォルダをFirebaseプロジェクトへ紐付けます。
-3. Hostingへデプロイします。
+1. Log in with the Firebase CLI.
+2. Link this folder to a Firebase project.
+3. Deploy to Hosting.
 
 ```sh
 npx firebase-tools login
@@ -33,14 +33,14 @@ npx firebase-tools use --add
 npm run deploy
 ```
 
-実プロジェクトIDはリポジトリへ固定していません。`firebase use --add` がローカルに作る `.firebaserc` で選択してください。
+The actual project ID is not hard-coded into the repository. Select it locally via the `.firebaserc` file created by `firebase use --add`.
 
-## 出力
+## Output
 
 - SVG
-- 8bitグレースケールPNG（指定DPIの `pHYs` メタデータ入り）
-- 再利用用の設定JSON
+- 8-bit grayscale PNG (with `pHYs` metadata for the specified DPI)
+- Settings JSON for reuse
 
-## 実装上の制限
+## Implementation limitations
 
-背景地図は設定から非表示にできます。外部標高補完と地点ラベルの個別ドラッグ編集は対象外です。
+The background map can be hidden via settings. External elevation interpolation and individual drag-editing of place labels are out of scope.
