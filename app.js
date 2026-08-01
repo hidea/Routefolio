@@ -9,9 +9,9 @@ const ids = [
   "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
   "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
   "route-scale", "route-offset-x", "route-offset-y",
-  "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-waypoints", "show-datetime",
+  "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-datetime",
   "show-map", "show-arrows", "antialias", "start-label-position", "finish-label-position",
-  "label-position", "meta-position", "profile-position"
+  "meta-position", "profile-position"
 ];
 
 let routeData = null;
@@ -63,12 +63,10 @@ const state = () => {
     showArrows: $("show-arrows").checked,
     startLabelPosition: $("start-label-position").value,
     finishLabelPosition: $("finish-label-position").value,
-    labelPosition: $("label-position").value,
     metaPosition: $("meta-position").value,
     profilePosition: $("profile-position").value,
     showProfile: $("show-profile").checked,
     showProfileElevation: $("show-profile-elevation").checked,
-    showWaypoints: $("show-waypoints").checked,
     showDatetime: $("show-datetime").checked,
     antialias: $("antialias").checked,
     previewScale: clamp(Number($("preview-scale").value), 1, 300),
@@ -675,11 +673,6 @@ async function generateSvg(data, s, renderData = data) {
   if (s.startName) labels.push(pointLabel(startX, startY, s.startName, first.ele, s.startLabelPosition, w, h, endpointFontSize, labelElevationFontSize));
   if (s.finishName) labels.push(pointLabel(finishX, finishY, s.finishName, last.ele, s.finishLabelPosition, w, h, endpointFontSize, labelElevationFontSize));
 
-  const waypointSvg = s.showWaypoints ? data.waypoints.map((point) => {
-    const [x, y] = xy(point);
-    return `<circle cx="${x}" cy="${y}" r="${Math.max(4, h * .004) * markerScale}" fill="#111"/>
-      ${pointLabel(x, y, point.name, point.ele, s.labelPosition, w, h, labelFontSize, labelElevationFontSize)}`;
-  }).join("") : "";
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
     const [x, y] = xy(point);
     const markerSize = Math.max(5, h * .005) * markerScale;
@@ -775,7 +768,6 @@ async function generateSvg(data, s, renderData = data) {
     ${s.startName ? `<circle cx="${startX}" cy="${startY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
     ${s.finishName ? `<circle cx="${finishX}" cy="${finishY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
     ${labels.join("")}
-    ${waypointSvg}
     ${customLabelSvg}
     ${profile}
     ${scaleBar}
@@ -1147,6 +1139,14 @@ async function loadGpxFiles(files) {
     })));
     sourceRouteData = combineRouteData(parsedItems);
     routeData = sourceRouteData;
+    setCustomLabels(sourceRouteData.waypoints.map((point) => ({
+      name: point.name,
+      mode: "coordinate",
+      lat: point.lat,
+      lon: point.lon,
+      position: "top",
+      showOnProfile: false
+    })));
     if (sourceRouteData.name) $("section-title").value = sourceRouteData.name;
     $("clip-mode").value = "all";
     $("clip-distance-start").value = "0";
@@ -1462,7 +1462,7 @@ const layoutSettingKeys = [
   "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
   "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
   "routeScale", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
-  "showProfile", "showProfileElevation", "showWaypoints", "showMap", "showArrows", "showDatetime",
+  "showProfile", "showProfileElevation", "showMap", "showArrows", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
 const layoutControlMap = {
@@ -1478,7 +1478,7 @@ const layoutControlMap = {
   elevationFontSizePt: "elevation-font-size", routeScale: "route-scale",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
-  showProfileElevation: "show-profile-elevation", showWaypoints: "show-waypoints",
+  showProfileElevation: "show-profile-elevation",
   showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
   antialias: "antialias", metaPosition: "meta-position",
   profilePosition: "profile-position", previewScale: "preview-scale"
@@ -1535,11 +1535,11 @@ $("settings-file").addEventListener("change", async (event) => {
       routeScale: "route-scale",
       routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
-      showProfileElevation: "show-profile-elevation", showWaypoints: "show-waypoints",
+      showProfileElevation: "show-profile-elevation",
       showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
       antialias: "antialias", previewScale: "preview-scale",
       startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
-      labelPosition: "label-position", metaPosition: "meta-position", profilePosition: "profile-position",
+      metaPosition: "meta-position", profilePosition: "profile-position",
       clipMode: "clip-mode", clipDistanceStart: "clip-distance-start",
       clipDistanceEnd: "clip-distance-end", clipTimeStart: "clip-time-start", clipTimeEnd: "clip-time-end"
     };

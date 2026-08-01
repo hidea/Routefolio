@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Generates a monochrome section route diagram and elevation profile for print, from a GPX file.">
   <title>Route Visualizer</title>
-  <link rel="stylesheet" href="styles.css?v=20260802-47">
+  <link rel="stylesheet" href="styles.css?v=20260802-48">
 </head>
 <body>
   <main class="workspace">
@@ -80,18 +80,6 @@
           </label>
           <label>Finish-name direction
             <select id="finish-label-position">
-              <option value="top">Top</option>
-              <option value="top-right">Top right</option>
-              <option value="right">Right</option>
-              <option value="bottom-right">Bottom right</option>
-              <option value="bottom">Bottom</option>
-              <option value="bottom-left">Bottom left</option>
-              <option value="left">Left</option>
-              <option value="top-left">Top left</option>
-            </select>
-          </label>
-          <label>Waypoint label direction
-            <select id="label-position">
               <option value="top">Top</option>
               <option value="top-right">Top right</option>
               <option value="right">Right</option>
@@ -221,7 +209,6 @@
           <label class="check"><input id="show-arrows" type="checkbox" checked> Direction of travel</label>
           <label class="check"><input id="show-profile" type="checkbox" checked> Elevation profile</label>
           <label class="check"><input id="show-profile-elevation" type="checkbox" checked> Elevation on profile labels</label>
-          <label class="check"><input id="show-waypoints" type="checkbox" checked> Waypoints</label>
           <label class="check"><input id="show-datetime" type="checkbox" checked> Start/end datetime</label>
           <label class="check"><input id="antialias" type="checkbox" checked> Anti-aliasing</label>
         </fieldset>
@@ -286,6 +273,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260802-67"></script>
+  <script type="module" src="app.js?v=20260802-68"></script>
 </body>
 </html>
