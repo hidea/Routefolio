@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Generates a monochrome section route diagram and elevation profile for print, from a GPX file.">
   <title>Route Visualizer</title>
-  <link rel="stylesheet" href="styles.css?v=20260802-43">
+  <link rel="stylesheet" href="styles.css?v=20260802-44">
 </head>
 <body>
   <main class="workspace">
@@ -192,7 +192,7 @@
             <label>Heading size pt<input id="info-font-size" type="number" min="4" max="144" step="0.5" value="18"></label>
             <label>Label size pt<input id="label-font-size" type="number" min="4" max="144" step="0.5" value="10"></label>
             <label>Point size %<input id="marker-scale" type="number" min="10" max="200" step="5" value="100"></label>
-            <label>Elevation text size pt<input id="elevation-font-size" type="number" min="4" max="144" step="0.5" value="7"></label>
+            <label>Profile label size pt<input id="elevation-font-size" type="number" min="4" max="144" step="0.5" value="7"></label>
             <label>Section name horizontal offset mm<input id="info-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
             <label>Section name vertical offset mm<input id="info-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
           </div>
@@ -209,8 +209,8 @@
           <legend>Elevation profile</legend>
           <div class="field-grid">
             <label>Line width mm<input id="profile-width" type="number" min="0.1" max="1.5" step="0.05" value="0.3"></label>
-            <label>Width %<input id="profile-box-width" type="number" min="20" max="90" step="1" value="42"></label>
-            <label>Height %<input id="profile-box-height" type="number" min="10" max="70" step="1" value="22"></label>
+            <label>Width mm<input id="profile-box-width" type="number" min="10" max="1000" step="0.1" value="85.3"></label>
+            <label>Height mm<input id="profile-box-height" type="number" min="10" max="1000" step="0.1" value="29.8"></label>
             <label>Horizontal offset mm<input id="profile-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
             <label>Vertical offset mm<input id="profile-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
           </div>
@@ -270,6 +270,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260802-58"></script>
+  <script type="module" src="app.js?v=20260802-66"></script>
 </body>
 </html>

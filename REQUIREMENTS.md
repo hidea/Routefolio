@@ -43,7 +43,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - Start/end datetime omit the year and show month, day, hour, and minute.
 - Start and end datetime are shown on a single line, with no leading zero on the hour.
 - Distance and elevation gain are laid out as "label, value, unit", with only the value shown large.
-- The heading, place-label, and elevation-profile text sizes can be specified directly in points.
+- The heading, place-label, and elevation-profile annotation sizes can be specified directly in points; profile axis labels remain fixed-size.
 - The start-point and finish-point names are shown at roughly the same text size as the distance value at 100% heading size.
 - The GPX name is adopted as the section name, in priority order of `trk/name`, `rte/name`, `metadata/name`.
 - The range used can be chosen from the entire GPX, start/end distance (km), or start/end time.
@@ -63,6 +63,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - The heading block can be offset horizontally and vertically in millimeters.
 - The placement of the elevation profile can be chosen from top/bottom/left/right.
 - The elevation profile can be offset horizontally and vertically in millimeters.
+- The elevation profile width and height can be specified directly in millimeters.
 - Output margins can be specified in millimeters, either as one value for all sides or separately for top/right/bottom/left.
 - The background map, elevation profile, and waypoints can each be toggled on or off.
 - The live preview display scale can be adjusted from 1% to 300% without changing exported image dimensions, and can be fit within the preview area in both dimensions.

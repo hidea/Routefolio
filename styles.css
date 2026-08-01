@@ -136,11 +136,11 @@
 }
 .visibility-options .check + .check { @apply mt-0; }
 .actions {
-  @apply mt-3 rounded-md border border-line bg-[#f7f6f1] px-3.5 py-[18px]!;
+  @apply mt-3 rounded-md border border-line bg-[#f7f6f1] p-5!;
 }
-.button-row { @apply mt-2 grid grid-cols-2 gap-2; }
+.button-row { @apply mt-3 grid grid-cols-2 gap-3; }
 .button-row button, .upload-button {
-  @apply grid place-items-center rounded-none border border-ink bg-ink px-2.5 py-[9px] text-[.76rem] text-white;
+  @apply grid min-h-11 place-items-center rounded-none border border-ink bg-ink px-3 py-2.5 text-[.76rem] text-white;
 }
 .button-row .secondary { @apply bg-white text-ink; }
 .upload-button { @apply cursor-pointer; }

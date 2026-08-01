@@ -43,8 +43,8 @@ const state = () => {
     marginLeftMm: clamp(Number($("margin-left").value), 0, 200),
     routeWidthMm: clamp(Number($("route-width").value), .2, 1.5),
     profileWidthMm: clamp(Number($("profile-width").value), .1, 1.5),
-    profileBoxWidth: clamp(Number($("profile-box-width").value), 20, 90),
-    profileBoxHeight: clamp(Number($("profile-box-height").value), 10, 70),
+    profileBoxWidthMm: clamp(Number($("profile-box-width").value), 10, 1000),
+    profileBoxHeightMm: clamp(Number($("profile-box-height").value), 10, 1000),
     profileOffsetXMm: clamp(Number($("profile-offset-x").value), -500, 500),
     profileOffsetYMm: clamp(Number($("profile-offset-y").value), -500, 500),
     infoOffsetXMm: clamp(Number($("info-offset-x").value), -500, 500),
@@ -643,8 +643,13 @@ async function generateSvg(data, s, renderData = data) {
   const sans = "Hiragino Sans, Yu Gothic, sans-serif";
   const infoFs = s.infoFontSizePt * ptToPx;
   const labelFontSize = s.labelFontSizePt * ptToPx;
-  const profileFontSize = s.elevationFontSizePt * ptToPx;
-  const small = profileFontSize;
+  const profileLabelFontSize = s.elevationFontSizePt * ptToPx;
+  const labelElevationFontSize = labelFontSize * .65;
+  const auxiliaryFontSize = 7 * ptToPx;
+  const profileAxisFontSize = auxiliaryFontSize;
+  const attributionFontSize = auxiliaryFontSize * .68;
+  const attributionBottomInset = auxiliaryFontSize * .2;
+  const attributionGap = auxiliaryFontSize * .25;
   const linePx = Math.max(1, 12.8 * (w / 2400) * (s.routeWidthMm / .5));
   const ascentM = routeAscent(data, s.elevationThreshold);
 
@@ -667,50 +672,45 @@ async function generateSvg(data, s, renderData = data) {
   const labels = [];
   const markerScale = s.markerScale / 100;
   const endpointFontSize = labelFontSize;
-  if (s.startName) labels.push(pointLabel(startX, startY, s.startName, first.ele, s.startLabelPosition, w, h, endpointFontSize, small));
-  if (s.finishName) labels.push(pointLabel(finishX, finishY, s.finishName, last.ele, s.finishLabelPosition, w, h, endpointFontSize, small));
+  if (s.startName) labels.push(pointLabel(startX, startY, s.startName, first.ele, s.startLabelPosition, w, h, endpointFontSize, labelElevationFontSize));
+  if (s.finishName) labels.push(pointLabel(finishX, finishY, s.finishName, last.ele, s.finishLabelPosition, w, h, endpointFontSize, labelElevationFontSize));
 
   const waypointSvg = s.showWaypoints ? data.waypoints.map((point) => {
     const [x, y] = xy(point);
     return `<circle cx="${x}" cy="${y}" r="${Math.max(4, h * .004) * markerScale}" fill="#111"/>
-      ${pointLabel(x, y, point.name, point.ele, s.labelPosition, w, h, labelFontSize, small * .8)}`;
+      ${pointLabel(x, y, point.name, point.ele, s.labelPosition, w, h, labelFontSize, labelElevationFontSize)}`;
   }).join("") : "";
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
     const [x, y] = xy(point);
     const markerSize = Math.max(5, h * .005) * markerScale;
     return `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>
-      ${pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, small)}`;
+      ${pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, labelElevationFontSize)}`;
   }).join("");
 
+  const profileMargin = s.profilePosition.startsWith("bottom") && s.showMap
+    ? { ...margin, bottom: margin.bottom + attributionFontSize + attributionBottomInset + attributionGap }
+    : margin;
   const profileBox = positionedBox(
     s.profilePosition,
     w,
     h,
-    margin,
-    w * s.profileBoxWidth / 100,
-    h * s.profileBoxHeight / 100,
-    h * .15
+    profileMargin,
+    s.profileBoxWidthMm * pxPerMm,
+    s.profileBoxHeightMm * pxPerMm
   );
   const profileOffsetX = s.profileOffsetXMm * pxPerMm;
   const profileOffsetY = s.profileOffsetYMm * pxPerMm;
-  let profileLeft = profileBox.left + profileOffsetX;
-  let profileRight = profileBox.right + profileOffsetX;
+  const profileBoxWidth = profileBox.right - profileBox.left;
+  const profileBoxHeight = profileBox.bottom - profileBox.top;
+  const profileLeftGutter = Math.min(profileAxisFontSize * 4.5, profileBoxWidth * .35);
+  const profileRightGutter = Math.min(profileAxisFontSize, profileBoxWidth * .1);
+  const profileBottomGutter = Math.min(profileAxisFontSize * 2, profileBoxHeight * .3);
+  const profileLeft = profileBox.left + profileOffsetX + profileLeftGutter;
+  const profileRight = profileBox.right + profileOffsetX - profileRightGutter;
   const profileTop = profileBox.top + profileOffsetY;
-  const profileBottom = profileBox.bottom + profileOffsetY;
-  const requiredLeftGutter = profileFontSize * 4.2;
-  if (s.profilePosition.endsWith("left")) {
-    const availableShift = Math.max(0, w - margin.right - profileRight);
-    const shift = Math.min(requiredLeftGutter, availableShift);
-    profileLeft += shift;
-    profileRight += shift;
-  } else if (!s.profilePosition.endsWith("right")) {
-    const availableShift = Math.max(0, w - profileRight);
-    const shift = Math.min(requiredLeftGutter / 2, availableShift);
-    profileLeft += shift;
-    profileRight += shift;
-  }
+  const profileBottom = profileBox.bottom + profileOffsetY - profileBottomGutter;
   const profile = s.showProfile
-    ? profileSvg(renderData, s, profileLeft, profileRight, profileTop, profileBottom, profileFontSize, resolvedCustomLabels)
+    ? profileSvg(renderData, s, profileLeft, profileRight, profileTop, profileBottom, profileAxisFontSize, profileLabelFontSize, resolvedCustomLabels)
     : "";
   const japan = layoutPoints.every((p) => p.lat >= 20 && p.lat <= 46 && p.lon >= 122 && p.lon <= 154);
   const background = s.showMap
@@ -724,7 +724,7 @@ async function generateSvg(data, s, renderData = data) {
     : "";
   const centerLat = all.reduce((sum, point) => sum + point.lat, 0) / all.length;
   const scaleSide = s.showProfile && s.profilePosition.endsWith("left") ? "right" : "left";
-  const scaleBar = s.showMap ? scaleBarSvg(w, h, margin, scale, centerLat, small, scaleSide) : "";
+  const scaleBar = s.showMap ? scaleBarSvg(w, h, margin, scale, centerLat, auxiliaryFontSize, scaleSide) : "";
   const attributionOnLeft = scaleSide === "right";
   const attributionX = attributionOnLeft ? margin.left : w - margin.right;
   const attributionAnchor = attributionOnLeft ? "start" : "end";
@@ -779,7 +779,7 @@ async function generateSvg(data, s, renderData = data) {
     ${customLabelSvg}
     ${profile}
     ${scaleBar}
-    <text x="${attributionX}" y="${h - margin.bottom * .48}" text-anchor="${attributionAnchor}" font-size="${small * .68}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${small * .2}">${esc(background.attribution)}</text>
+    <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${auxiliaryFontSize * .2}">${esc(background.attribution)}</text>
   </g>
 </svg>`;
 }
@@ -794,7 +794,7 @@ function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left")
   const distanceMeters = factor * magnitude;
   const length = distanceMeters / metersPerPixel;
   const x = side === "right" ? w - margin.right - length : margin.left;
-  const y = h - margin.bottom * .48;
+  const y = h - margin.bottom - fs * 1.25;
   const segment = length / 2;
   const label = distanceMeters >= 1000
     ? `${Number((distanceMeters / 1000).toPrecision(3))} km`
@@ -883,13 +883,13 @@ function formatGpxTime(value, timeZone) {
   return `${parts.month}/${parts.day} ${Number(parts.hour)}:${parts.minute}`;
 }
 
-function positionedBox(position, w, h, margin, boxW, boxH, topInset) {
+function positionedBox(position, w, h, margin, boxW, boxH) {
   const leftSide = position.endsWith("left");
   const rightSide = position.endsWith("right");
   const topSide = position.startsWith("top");
   const bottomSide = position.startsWith("bottom");
   const left = leftSide ? margin.left : rightSide ? w - margin.right - boxW : (w - boxW) / 2;
-  const top = topSide ? Math.max(topInset, margin.top) : bottomSide ? h - margin.bottom - boxH : (h - boxH) / 2;
+  const top = topSide ? margin.top : bottomSide ? h - margin.bottom - boxH : (h - boxH) / 2;
   return { left, right: left + boxW, top, bottom: top + boxH };
 }
 
@@ -987,7 +987,7 @@ function arrowSvg(points, size) {
   }).join("");
 }
 
-function pointLabel(x, y, name, ele, position, w, h, fs, small) {
+function pointLabel(x, y, name, ele, position, w, h, fs, elevationFs) {
   const left = position === "left" || position.endsWith("-left");
   const right = position === "right" || position.endsWith("-right");
   const top = position === "top" || position.startsWith("top-");
@@ -997,9 +997,9 @@ function pointLabel(x, y, name, ele, position, w, h, fs, small) {
   const dx = (left ? -fs * .65 : right ? fs * .65 : 0) * diagonalScale;
   const elevation = Number.isFinite(ele) ? `${Math.round(ele).toLocaleString("ja-JP")} m` : "";
   const verticalOffset = top
-    ? elevation ? -small * 2.25 : -fs * .65
+    ? elevation ? -elevationFs * 2.25 : -fs * .65
     : bottom ? fs * 1.35
-    : elevation && (position === "left" || position === "right") ? -small * .625
+    : elevation && (position === "left" || position === "right") ? -elevationFs * .625
     : position === "left" || position === "right" ? fs * .35
     : 0;
   const dy = (top || bottom) ? verticalOffset * diagonalScale : verticalOffset;
@@ -1007,15 +1007,14 @@ function pointLabel(x, y, name, ele, position, w, h, fs, small) {
   const safeY = clamp(y + dy, h * .08, h * .91);
   return `<g font-family='"Hiragino Sans","Yu Gothic",sans-serif' text-anchor="${anchor}">
     <text x="${safeX}" y="${safeY}" font-size="${fs}" font-weight="600" paint-order="stroke" stroke="#fff" stroke-width="${fs * .28}">${esc(name)}</text>
-    ${elevation ? `<text x="${safeX}" y="${safeY + small * 1.25}" font-size="${small}" fill="#555" paint-order="stroke" stroke="#fff" stroke-width="${small * .3}">${elevation}</text>` : ""}
+    ${elevation ? `<text x="${safeX}" y="${safeY + elevationFs * 1.25}" font-size="${elevationFs}" fill="#555" paint-order="stroke" stroke="#fff" stroke-width="${elevationFs * .3}">${elevation}</text>` : ""}
   </g>`;
 }
 
-function profileSvg(data, s, left, right, top, bottom, fs, customLabels = []) {
+function profileSvg(data, s, left, right, top, bottom, fs, annotationFontSize, customLabels = []) {
   const allElevationPoints = data.flat.filter((p) => Number.isFinite(p.ele));
   if (allElevationPoints.length < 2) return "";
   const profileLabels = customLabels.filter(({ label }) => label.showOnProfile);
-  const annotationFontSize = fs * .67;
   const annotationMeasure = document.createElement("canvas").getContext("2d");
   annotationMeasure.font = `600 ${annotationFontSize}px "Hiragino Sans","Yu Gothic",sans-serif`;
   const preparedAnnotations = profileLabels.map(({ label, point }) => {
@@ -1466,7 +1465,7 @@ $("settings-file").addEventListener("change", async (event) => {
       marginTopMm: "margin-top", marginRightMm: "margin-right",
       marginBottomMm: "margin-bottom", marginLeftMm: "margin-left",
       routeWidthMm: "route-width", profileWidthMm: "profile-width",
-      profileBoxWidth: "profile-box-width", profileBoxHeight: "profile-box-height",
+      profileBoxWidthMm: "profile-box-width", profileBoxHeightMm: "profile-box-height",
       profileOffsetXMm: "profile-offset-x", profileOffsetYMm: "profile-offset-y",
       infoOffsetXMm: "info-offset-x", infoOffsetYMm: "info-offset-y",
       arrowSizeMm: "arrow-size",
@@ -1493,6 +1492,12 @@ $("settings-file").addEventListener("change", async (event) => {
     }
     const legacyWidthMm = Number(settings.widthMm) || Number(settings.width) / (Number(settings.dpi) || 300) * 25.4;
     const legacyHeightMm = Number(settings.heightMm) || Number(settings.height) / (Number(settings.dpi) || 300) * 25.4;
+    if (!("profileBoxWidthMm" in settings) && Number.isFinite(settings.profileBoxWidth)) {
+      $("profile-box-width").value = (legacyWidthMm * settings.profileBoxWidth / 100).toFixed(1);
+    }
+    if (!("profileBoxHeightMm" in settings) && Number.isFinite(settings.profileBoxHeight)) {
+      $("profile-box-height").value = (legacyHeightMm * settings.profileBoxHeight / 100).toFixed(1);
+    }
     if (!("marginTopMm" in settings) && Number.isFinite(settings.marginPercent)) {
       const legacyMarginMm = legacyWidthMm * Number(settings.marginPercent) / 100;
       ["margin-top", "margin-right", "margin-bottom", "margin-left"].forEach((id) => { $(id).value = legacyMarginMm.toFixed(2); });
