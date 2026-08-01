@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Route Visualizer" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="35.116" lon="135.515"><ele>512</ele><name>杉峠</name></wpt>
+  <wpt lat="35.186" lon="135.636"><ele>768</ele><name>水越</name></wpt>
+  <trk><name>第四区間</name><trkseg>
+    <trkpt lat="35.040" lon="135.350"><ele>110</ele></trkpt>
+    <trkpt lat="35.055" lon="135.380"><ele>180</ele></trkpt>
+    <trkpt lat="35.073" lon="135.397"><ele>265</ele></trkpt>
+    <trkpt lat="35.079" lon="135.428"><ele>315</ele></trkpt>
+    <trkpt lat="35.101" lon="135.447"><ele>440</ele></trkpt>
+    <trkpt lat="35.116" lon="135.515"><ele>512</ele></trkpt>
+    <trkpt lat="35.145" lon="135.538"><ele>690</ele></trkpt>
+    <trkpt lat="35.172" lon="135.567"><ele>910</ele></trkpt>
+    <trkpt lat="35.164" lon="135.593"><ele>720</ele></trkpt>
+    <trkpt lat="35.186" lon="135.636"><ele>768</ele></trkpt>
+    <trkpt lat="35.163" lon="135.671"><ele>520</ele></trkpt>
+    <trkpt lat="35.190" lon="135.708"><ele>650</ele></trkpt>
+    <trkpt lat="35.179" lon="135.742"><ele>430</ele></trkpt>
+    <trkpt lat="35.205" lon="135.777"><ele>580</ele></trkpt>
+    <trkpt lat="35.194" lon="135.818"><ele>350</ele></trkpt>
+    <trkpt lat="35.223" lon="135.850"><ele>190</ele></trkpt>
+  </trkseg></trk>
+</gpx>

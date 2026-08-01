@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="GPXから書籍用のモノクロ区間経路図と標高図を生成します。">
+  <title>Route Visualizer</title>
+  <link rel="stylesheet" href="styles.css?v=20260727-41">
+</head>
+<body>
+  <main class="workspace">
+    <aside class="controls" aria-label="図版設定">
+      <header class="sidebar-brand">
+        <h1>Route Visualizer</h1>
+        <p>GPXはブラウザ内だけで処理されます</p>
+      </header>
+
+      <details class="settings-group" open>
+        <summary><span class="step-number">01</span><span>GPX・使用範囲</span></summary>
+        <div class="settings-body">
+        <label class="file-drop" for="gpx-file">
+          <span>GPXファイルを選択（複数可）</span>
+          <small id="file-name">未選択</small>
+          <input id="gpx-file" type="file" multiple accept=".gpx,application/gpx+xml,application/xml,text/xml">
+        </label>
+        <button id="load-sample" class="text-button" type="button">同梱サンプルを使う</button>
+        <label>表示タイムゾーン
+          <input id="time-zone" list="time-zone-options" value="auto" placeholder="例：Asia/Tokyo">
+          <datalist id="time-zone-options">
+            <option value="auto">GPXの座標から自動判定</option>
+            <option value="Asia/Tokyo">日本時間</option>
+            <option value="UTC">協定世界時</option>
+            <option value="browser">ブラウザのタイムゾーン</option>
+            <option value="Europe/Paris">中央ヨーロッパ時間</option>
+            <option value="Europe/London">英国時間</option>
+            <option value="America/New_York">米国東部時間</option>
+            <option value="America/Los_Angeles">米国太平洋時間</option>
+          </datalist>
+          <small id="detected-time-zone">自動判定（判定できない場合は Asia/Tokyo）</small>
+        </label>
+        <fieldset class="clip-controls">
+          <legend>使用範囲</legend>
+          <label>切り出し方法
+            <select id="clip-mode">
+              <option value="all">全体</option>
+              <option value="distance">距離</option>
+              <option value="time" disabled>時刻（時刻データなし）</option>
+            </select>
+          </label>
+          <div id="clip-distance-fields" class="field-grid" hidden>
+            <label>開始 km<input id="clip-distance-start" type="number" min="0" step="0.1" value="0"></label>
+            <label>終了 km<input id="clip-distance-end" type="number" min="0" step="0.1"></label>
+          </div>
+          <div id="clip-time-fields" class="field-grid" hidden>
+            <label>開始日時<input id="clip-time-start" type="datetime-local"></label>
+            <label>終了日時<input id="clip-time-end" type="datetime-local"></label>
+          </div>
+        </fieldset>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">02</span><span>表記・ラベル</span></summary>
+        <div class="settings-body">
+        <div class="field-grid">
+          <label class="wide">区間名<input id="section-title" value="セクション4 山間部を越えて"></label>
+          <label>始点名<input id="start-name" value="始点"></label>
+          <label>終点名<input id="finish-name" value="終点"></label>
+          <label>始点名の方向
+            <select id="start-label-position">
+              <option value="top">上</option>
+              <option value="top-right">右上</option>
+              <option value="right">右</option>
+              <option value="bottom-right">右下</option>
+              <option value="bottom">下</option>
+              <option value="bottom-left">左下</option>
+              <option value="left">左</option>
+              <option value="top-left">左上</option>
+            </select>
+          </label>
+          <label>終点名の方向
+            <select id="finish-label-position">
+              <option value="top">上</option>
+              <option value="top-right">右上</option>
+              <option value="right">右</option>
+              <option value="bottom-right">右下</option>
+              <option value="bottom">下</option>
+              <option value="bottom-left">左下</option>
+              <option value="left">左</option>
+              <option value="top-left">左上</option>
+            </select>
+          </label>
+          <label>ウェイポイントの方向
+            <select id="label-position">
+              <option value="top">上</option>
+              <option value="top-right">右上</option>
+              <option value="right">右</option>
+              <option value="bottom-right">右下</option>
+              <option value="bottom">下</option>
+              <option value="bottom-left">左下</option>
+              <option value="left">左</option>
+              <option value="top-left">左上</option>
+            </select>
+          </label>
+          <label>見出し情報の配置
+            <select id="meta-position">
+              <option value="top-left">左上</option>
+              <option value="top-center">中央上</option>
+              <option value="top-right">右上</option>
+              <option value="center-left">左中央</option>
+              <option value="center">中央</option>
+              <option value="center-right">右中央</option>
+              <option value="bottom-left">左下</option>
+              <option value="bottom-center">中央下</option>
+              <option value="bottom-right">右下</option>
+            </select>
+          </label>
+          <label class="wide">標高プロファイル
+            <select id="profile-position">
+              <option value="bottom-right">右下</option>
+              <option value="bottom-left">左下</option>
+              <option value="bottom-center">中央下</option>
+              <option value="top-right">右上</option>
+              <option value="top-left">左上</option>
+              <option value="top-center">中央上</option>
+              <option value="center-left">左中央</option>
+              <option value="center">中央</option>
+              <option value="center-right">右中央</option>
+            </select>
+          </label>
+        </div>
+        <div class="custom-labels-heading">
+          <h3>追加ラベル</h3>
+        </div>
+        <div id="custom-labels"></div>
+        <button id="add-custom-label" class="text-button add-label-button" type="button">ラベルを追加</button>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">03</span><span>出力サイズ</span></summary>
+        <div class="settings-body">
+        <fieldset class="mode-picker">
+          <legend>指定方法</legend>
+          <label><input type="radio" name="size-mode" value="px" checked> 画素</label>
+          <label><input type="radio" name="size-mode" value="mm"> 仕上がり寸法</label>
+        </fieldset>
+        <div class="field-grid" id="px-fields">
+          <label>幅 px<input id="width-px" type="number" min="320" max="12000" value="2400"></label>
+          <label>高さ px<input id="height-px" type="number" min="320" max="12000" value="1600"></label>
+        </div>
+        <div class="field-grid" id="mm-fields" hidden>
+          <label>幅 mm<input id="width-mm" type="number" min="20" max="1000" step="0.1" value="203.2"></label>
+          <label>高さ mm<input id="height-mm" type="number" min="20" max="1000" step="0.1" value="135.5"></label>
+        </div>
+        <label>DPI<input id="dpi" type="number" min="72" max="1200" value="300"></label>
+        <output id="size-summary" class="size-summary"></output>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">04</span><span>描画・表示項目</span></summary>
+        <div class="settings-body">
+        <fieldset class="settings-subgroup">
+          <legend>線・余白</legend>
+          <div class="field-grid">
+            <label>左右余白 %<input id="margin-percent" type="number" min="3" max="20" step="0.5" value="6"></label>
+            <label>経路線 mm<input id="route-width" type="number" min="0.2" max="1.5" step="0.05" value="0.5"></label>
+            <label>矢印サイズ mm<input id="arrow-size" type="number" min="0.5" max="10" step="0.25" value="2.5"></label>
+            <label>獲得標高ノイズ閾値 m<input id="elevation-threshold" type="number" min="0" max="50" value="0"></label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-subgroup">
+          <legend>文字・ポイント</legend>
+          <div class="field-grid">
+            <label>見出しサイズ %<input id="info-scale" type="number" min="50" max="200" step="5" value="120"></label>
+            <label>ラベルサイズ %<input id="label-scale" type="number" min="50" max="200" step="5" value="100"></label>
+            <label>ポイントサイズ %<input id="marker-scale" type="number" min="10" max="200" step="5" value="100"></label>
+            <label>標高サイズ %<input id="elevation-scale" type="number" min="50" max="200" step="5" value="100"></label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-subgroup">
+          <legend>地図配置</legend>
+          <div class="field-grid">
+            <label>地図縮尺 %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
+            <label>横オフセット %<input id="route-offset-x" type="number" min="-40" max="40" step="0.5" value="0"></label>
+            <label>縦オフセット %<input id="route-offset-y" type="number" min="-40" max="40" step="0.5" value="0"></label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-subgroup">
+          <legend>標高図</legend>
+          <div class="field-grid">
+            <label>線幅 mm<input id="profile-width" type="number" min="0.1" max="1.5" step="0.05" value="0.3"></label>
+            <label>幅 %<input id="profile-box-width" type="number" min="20" max="90" step="1" value="42"></label>
+            <label>高さ %<input id="profile-box-height" type="number" min="10" max="70" step="1" value="22"></label>
+            <label>横オフセット %<input id="profile-offset-x" type="number" min="-40" max="40" step="0.5" value="0"></label>
+            <label>縦オフセット %<input id="profile-offset-y" type="number" min="-40" max="40" step="0.5" value="0"></label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-subgroup visibility-options">
+          <legend>表示切替</legend>
+          <label class="check"><input id="show-map" type="checkbox" checked> 背景地図</label>
+          <label class="check"><input id="show-arrows" type="checkbox" checked> 進行方向</label>
+          <label class="check"><input id="show-profile" type="checkbox" checked> 標高図</label>
+          <label class="check"><input id="show-profile-elevation" type="checkbox" checked> 標高ラベルの標高</label>
+          <label class="check"><input id="show-waypoints" type="checkbox" checked> ウェイポイント</label>
+          <label class="check"><input id="show-datetime" type="checkbox" checked> 開始・終了日時</label>
+          <label class="check"><input id="antialias" type="checkbox" checked> アンチエイリアシング</label>
+        </fieldset>
+        </div>
+      </details>
+
+      <section class="actions">
+        <h2>保存</h2>
+        <div class="button-row">
+          <button id="download-png" type="button" disabled>PNGを保存</button>
+          <button id="download-svg" type="button" class="secondary" disabled>SVGを保存</button>
+        </div>
+        <div class="button-row">
+          <button id="save-settings" type="button" class="secondary">設定を書き出す</button>
+          <label class="button secondary upload-button">設定を読み込む<input id="settings-file" type="file" accept=".json,application/json"></label>
+        </div>
+      </section>
+      <p id="status" class="status" role="status" aria-live="polite">GPXを選択してください。</p>
+      <p class="map-credits">
+        背景地図：
+        <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">国土地理院「地理院タイル」</a>
+        ／
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+      </p>
+    </aside>
+
+    <section class="preview-region" aria-labelledby="preview-heading">
+      <div class="preview-toolbar">
+        <div>
+          <p class="eyebrow">即時プレビュー</p>
+          <h2 id="preview-heading">出力図版</h2>
+        </div>
+        <button id="fit-preview" class="text-button" type="button">全体表示</button>
+      </div>
+      <div id="preview-shell" class="preview-shell">
+        <div id="empty-preview" class="empty-preview">
+          <span aria-hidden="true">⌁</span>
+          <p>GPXを読み込むと、ここに図版が表示されます。</p>
+        </div>
+        <div id="preview" aria-label="生成された区間経路図"></div>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="app.js?v=20260724-50"></script>
+</body>
+</html>

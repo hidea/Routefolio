@@ -1,0 +1,207 @@
+:root {
+  color-scheme: light;
+  --ink: #181816;
+  --muted: #6f6e68;
+  --line: #d9d7cf;
+  --paper: #f8f7f2;
+  --panel: #efeee8;
+  --focus: #695f48;
+  --control-bg: #fbfaf6;
+  --active: #2f2d28;
+  font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; color: var(--ink); background: var(--paper); }
+button, input, select { font: inherit; }
+button, .button { min-height: 42px; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .42; }
+
+.eyebrow { margin: 0; color: var(--muted); font-size: .72rem; letter-spacing: .13em; }
+
+.workspace { display: grid; grid-template-columns: minmax(310px, 390px) 1fr; min-height: 100dvh; }
+.controls {
+  position: sticky;
+  inset-block-start: 0;
+  align-self: start;
+  block-size: 100dvh;
+  padding: 12px 18px 40px;
+  border-right: 1px solid var(--line);
+  background: #fff;
+  overflow: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+.sidebar-brand {
+  padding: 12px 4px 18px;
+  border-block-end: 1px solid var(--line);
+  margin-block-end: 8px;
+}
+.sidebar-brand h1 {
+  margin: 0;
+  font: 500 1.15rem/1.25 "Hiragino Mincho ProN", "Yu Mincho", serif;
+}
+.sidebar-brand p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: .69rem;
+  line-height: 1.45;
+}
+.controls section, .controls > details { padding: 0; }
+.controls h2 { margin: 0 0 14px; font-size: .78rem; font-weight: 600; letter-spacing: .12em; }
+label { display: grid; gap: 6px; color: #5c5a54; font-size: .76rem; line-height: 1.35; }
+input:not([type="radio"]):not([type="checkbox"]):not([type="file"]), select {
+  width: 100%; height: 42px; padding: 8px 10px; color: var(--ink);
+  background: var(--control-bg); border: 1px solid #aaa79d; border-radius: 4px;
+}
+input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):hover, select:hover {
+  border-color: #77746b;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, .file-drop:focus-within {
+  outline: 3px solid var(--focus); outline-offset: 2px;
+}
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-grid .wide { grid-column: 1 / -1; }
+.custom-labels-heading { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
+.custom-labels-heading h3 { margin: 0; font-size: .76rem; letter-spacing: .08em; }
+.add-label-button { margin-top: 12px; }
+.custom-label-row { display: grid; gap: 10px; margin-top: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.custom-label-row .remove-label { justify-self: end; min-height: auto; padding: 4px 0; border: 0; border-bottom: 1px solid currentColor; background: transparent; color: #7b2820; font-size: .72rem; }
+.file-drop {
+  min-height: 82px; place-content: center; padding: 14px; text-align: center;
+  border: 1px dashed #8c897f; border-radius: 5px; background: var(--control-bg);
+  color: var(--ink); cursor: pointer;
+}
+.file-drop:hover { border-style: solid; background: #f5f3ec; }
+.file-drop small { color: var(--muted); overflow-wrap: anywhere; }
+.file-drop input, .upload-button input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.text-button { min-height: auto; padding: 8px 0; border: 0; border-bottom: 1px solid currentColor; background: transparent; color: var(--ink); }
+.mode-picker { display: flex; gap: 18px; padding: 0; margin: 0 0 14px; border: 0; }
+.mode-picker legend { margin-bottom: 8px; color: var(--muted); font-size: .76rem; }
+.clip-controls { display: grid; gap: 12px; padding: 14px 0 0; margin: 14px 0 0; border: 0; border-top: 1px solid var(--line); }
+.clip-controls legend { padding-top: 14px; color: var(--ink); font-size: .76rem; font-weight: 600; }
+.mode-picker label, .check { display: flex; align-items: center; gap: 7px; }
+.mode-picker input, .check input { accent-color: var(--active); }
+.size-summary { display: block; margin-top: 10px; color: var(--muted); font-size: .73rem; line-height: 1.5; }
+.settings-group {
+  margin-block: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  overflow: clip;
+}
+.settings-group[open] {
+  border-color: #b8b5ab;
+  box-shadow: 0 2px 8px rgb(36 34 28 / .05);
+}
+.settings-group > summary {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px;
+  min-height: 54px; padding-inline: 14px; cursor: pointer; list-style: none;
+  font-size: .8rem; font-weight: 600; letter-spacing: .08em;
+}
+.settings-group > summary:hover { background: #f7f6f1; }
+.settings-group[open] > summary { border-bottom: 1px solid var(--line); background: #f7f6f1; }
+.settings-group > summary::-webkit-details-marker { display: none; }
+.settings-group > summary::after {
+  content: ""; inline-size: 8px; block-size: 8px;
+  border-inline-end: 1.5px solid currentColor; border-block-end: 1.5px solid currentColor;
+  transform: rotate(45deg) translateY(-2px); transition: transform .16s ease;
+}
+.settings-group[open] > summary::after { transform: rotate(225deg) translate(-2px, -2px); }
+.step-number {
+  display: grid; place-items: center; inline-size: 26px; block-size: 26px;
+  border-radius: 50%; background: var(--ink); color: #fff;
+  font-size: .65rem; letter-spacing: .04em;
+}
+.settings-body { padding: 18px 14px 20px; }
+.settings-subgroup {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.settings-subgroup + .settings-subgroup {
+  margin-block-start: 20px;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--line);
+}
+.settings-subgroup > legend {
+  margin-block-end: 11px;
+  padding: 0;
+  color: var(--ink);
+  font-size: .73rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+.check + .check { margin-top: 10px; }
+.visibility-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.visibility-options legend { grid-column: 1 / -1; }
+.visibility-options .check {
+  min-height: 36px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--control-bg);
+}
+.visibility-options .check + .check { margin-top: 0; }
+.actions {
+  margin-block-start: 12px;
+  padding: 18px 14px !important;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f7f6f1;
+}
+.button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.button-row button, .upload-button {
+  display: grid; place-items: center; padding: 9px 10px; border: 1px solid var(--ink);
+  border-radius: 0; background: var(--ink); color: #fff; font-size: .76rem;
+}
+.button-row .secondary { background: #fff; color: var(--ink); }
+.upload-button { cursor: pointer; }
+.status { margin: 8px 0; padding-left: 12px; border-left: 2px solid var(--ink); color: var(--muted); font-size: .75rem; line-height: 1.6; }
+.status.error { color: #8a1f16; border-color: #8a1f16; }
+.map-credits { color: var(--muted); font-size: .68rem; line-height: 1.6; }
+.map-credits a { color: inherit; text-underline-offset: 2px; }
+
+.preview-region {
+  position: sticky; top: 0; align-self: start; min-width: 0; height: 100vh;
+  padding: 28px clamp(18px, 4vw, 64px) 50px; background: var(--panel); overflow: auto;
+}
+.preview-toolbar { display: flex; justify-content: space-between; align-items: end; margin-bottom: 18px; }
+.preview-toolbar h2 { margin: 2px 0 0; font: 500 1.2rem/1.3 "Hiragino Mincho ProN", "Yu Mincho", serif; }
+.preview-shell {
+  display: grid; place-items: center; min-height: 65vh; padding: clamp(12px, 3vw, 38px);
+  background: #dddcd6; overflow: auto;
+}
+#preview { width: 100%; line-height: 0; box-shadow: 0 2px 14px rgb(0 0 0 / .1); }
+#preview svg { display: block; width: 100%; height: auto; background: #fff; }
+.empty-preview { text-align: center; color: #77756e; font: .9rem/1.6 "Hiragino Mincho ProN", "Yu Mincho", serif; }
+.empty-preview span { display: block; font-size: 3rem; font-family: serif; }
+
+@media (max-width: 850px) {
+  .workspace { grid-template-columns: 1fr; }
+  .controls {
+    position: static;
+    block-size: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    overflow: visible;
+  }
+  .preview-region { position: static; height: auto; min-height: 70vh; overflow: visible; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  button, input, select, .file-drop, .settings-group > summary {
+    transition: background-color .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease;
+  }
+}
+
+@media (max-width: 420px) {
+  .field-grid, .visibility-options { grid-template-columns: 1fr; }
+}

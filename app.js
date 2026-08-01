@@ -1,0 +1,1433 @@
+import { Canvg } from "canvg";
+import tzlookup from "tz-lookup";
+
+const $ = (id) => document.getElementById(id);
+const ids = [
+  "section-title", "start-name", "finish-name",
+  "width-px", "height-px", "width-mm", "height-mm", "dpi", "margin-percent",
+  "route-width", "profile-width", "profile-box-width", "profile-box-height",
+  "profile-offset-x", "profile-offset-y",
+  "arrow-size", "info-scale", "label-scale", "marker-scale", "elevation-scale",
+  "route-scale", "route-offset-x", "route-offset-y",
+  "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-waypoints", "show-datetime",
+  "show-map", "show-arrows", "antialias", "start-label-position", "finish-label-position",
+  "label-position", "meta-position", "profile-position"
+];
+
+let routeData = null;
+let sourceRouteData = null;
+let currentSvg = "";
+let renderVersion = 0;
+
+const state = () => {
+  const sizeMode = document.querySelector('input[name="size-mode"]:checked').value;
+  const dpi = clamp(Number($("dpi").value), 72, 1200);
+  const width = sizeMode === "px"
+    ? clamp(Math.round(Number($("width-px").value)), 320, 12000)
+    : clamp(Math.round(Number($("width-mm").value) / 25.4 * dpi), 320, 12000);
+  const height = sizeMode === "px"
+    ? clamp(Math.round(Number($("height-px").value)), 320, 12000)
+    : clamp(Math.round(Number($("height-mm").value) / 25.4 * dpi), 320, 12000);
+  return {
+    sizeMode, width, height, dpi,
+    widthMm: width / dpi * 25.4, heightMm: height / dpi * 25.4,
+    sectionTitle: $("section-title").value.trim() || "ルート",
+    startName: $("start-name").value.trim(),
+    finishName: $("finish-name").value.trim(),
+    marginPercent: clamp(Number($("margin-percent").value), 3, 20),
+    routeWidthMm: clamp(Number($("route-width").value), .2, 1.5),
+    profileWidthMm: clamp(Number($("profile-width").value), .1, 1.5),
+    profileBoxWidth: clamp(Number($("profile-box-width").value), 20, 90),
+    profileBoxHeight: clamp(Number($("profile-box-height").value), 10, 70),
+    profileOffsetX: clamp(Number($("profile-offset-x").value), -40, 40),
+    profileOffsetY: clamp(Number($("profile-offset-y").value), -40, 40),
+    arrowSizeMm: clamp(Number($("arrow-size").value), .5, 10),
+    infoScale: clamp(Number($("info-scale").value), 50, 200),
+    labelScale: clamp(Number($("label-scale").value), 50, 200),
+    markerScale: clamp(Number($("marker-scale").value), 10, 200),
+    elevationScale: clamp(Number($("elevation-scale").value), 50, 200),
+    routeScale: clamp(Number($("route-scale").value), 50, 300),
+    routeOffsetX: clamp(Number($("route-offset-x").value), -40, 40),
+    routeOffsetY: clamp(Number($("route-offset-y").value), -40, 40),
+    elevationThreshold: clamp(Number($("elevation-threshold").value), 0, 50),
+    timeZone: $("time-zone").value.trim() || "auto",
+    showMap: $("show-map").checked,
+    showArrows: $("show-arrows").checked,
+    startLabelPosition: $("start-label-position").value,
+    finishLabelPosition: $("finish-label-position").value,
+    labelPosition: $("label-position").value,
+    metaPosition: $("meta-position").value,
+    profilePosition: $("profile-position").value,
+    showProfile: $("show-profile").checked,
+    showProfileElevation: $("show-profile-elevation").checked,
+    showWaypoints: $("show-waypoints").checked,
+    showDatetime: $("show-datetime").checked,
+    antialias: $("antialias").checked,
+    clipMode: $("clip-mode").value,
+    clipDistanceStart: $("clip-distance-start").value,
+    clipDistanceEnd: $("clip-distance-end").value,
+    clipTimeStart: $("clip-time-start").value,
+    clipTimeEnd: $("clip-time-end").value,
+    customLabels: readCustomLabels()
+  };
+};
+
+function clamp(value, min, max) {
+  return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
+}
+
+function extent(items, valueOf) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const item of items) {
+    const value = valueOf(item);
+    if (value < min) min = value;
+    if (value > max) max = value;
+  }
+  return { min, max };
+}
+
+function readCustomLabels() {
+  return [...$("custom-labels").querySelectorAll(".custom-label-row")].map((row) => ({
+    name: row.querySelector(".custom-name").value.trim(),
+    mode: row.querySelector(".custom-mode").value,
+    distance: row.querySelector(".custom-distance").value,
+    time: row.querySelector(".custom-time").value,
+    lat: row.querySelector(".custom-lat").value,
+    lon: row.querySelector(".custom-lon").value,
+    position: row.querySelector(".custom-position").value,
+    showOnProfile: row.querySelector(".custom-show-profile").checked
+  })).filter((label) => label.name);
+}
+
+function updateCustomLabelFields(row) {
+  const mode = row.querySelector(".custom-mode").value;
+  row.querySelector(".custom-distance-fields").hidden = mode !== "distance";
+  row.querySelector(".custom-time-fields").hidden = mode !== "time";
+  row.querySelector(".custom-coordinate-fields").hidden = mode !== "coordinate";
+}
+
+function addCustomLabel(label) {
+  const isNewLabel = label === undefined;
+  label ||= {};
+  const row = document.createElement("div");
+  row.className = "custom-label-row";
+  row.innerHTML = `
+    <div class="field-grid">
+      <label class="wide">名称<input class="custom-name" type="text" placeholder="例：峠、CP1"></label>
+      <label>指定方法
+        <select class="custom-mode">
+          <option value="distance">距離</option>
+          <option value="time">日時</option>
+          <option value="coordinate">緯度・経度</option>
+        </select>
+      </label>
+      <label>表示方向
+        <select class="custom-position">
+          <option value="top">上</option><option value="top-right">右上</option>
+          <option value="right">右</option><option value="bottom-right">右下</option>
+          <option value="bottom">下</option><option value="bottom-left">左下</option>
+          <option value="left">左</option><option value="top-left">左上</option>
+        </select>
+      </label>
+    </div>
+    <div class="custom-distance-fields"><label>ルート上の距離 km<input class="custom-distance" type="number" min="0" step="0.1"></label></div>
+    <div class="custom-time-fields" hidden><label>日時<input class="custom-time" type="datetime-local"></label></div>
+    <div class="custom-coordinate-fields field-grid" hidden>
+      <label>緯度<input class="custom-lat" type="number" min="-90" max="90" step="0.000001"></label>
+      <label>経度<input class="custom-lon" type="number" min="-180" max="180" step="0.000001"></label>
+    </div>
+    <label class="check"><input class="custom-show-profile" type="checkbox"> 標高図に表示</label>
+    <button class="remove-label" type="button">このラベルを削除</button>`;
+  row.querySelector(".custom-name").value = label.name || "";
+  row.querySelector(".custom-mode").value = label.mode || "distance";
+  row.querySelector(".custom-distance").value = label.distance ?? "";
+  const labelTimeZone = resolveTimeZone(
+    $("time-zone").value.trim() || "auto",
+    sourceRouteData?.flat[0]
+  );
+  row.querySelector(".custom-time").value = label.time
+    || (isNewLabel ? toDatetimeLocal(sourceRouteData?.startTime, labelTimeZone) : "");
+  row.querySelector(".custom-lat").value = label.lat ?? "";
+  row.querySelector(".custom-lon").value = label.lon ?? "";
+  row.querySelector(".custom-position").value = label.position || "top";
+  const profileCheckbox = row.querySelector(".custom-show-profile");
+  const hasSavedProfileSetting = Object.hasOwn(label, "showOnProfile");
+  profileCheckbox.checked = hasSavedProfileSetting
+    ? Boolean(label.showOnProfile)
+    : row.querySelector(".custom-mode").value !== "coordinate";
+  profileCheckbox.dataset.explicit = hasSavedProfileSetting ? "true" : "false";
+  row.querySelector(".custom-mode").addEventListener("change", () => {
+    if (profileCheckbox.dataset.explicit !== "true") {
+      profileCheckbox.checked = row.querySelector(".custom-mode").value !== "coordinate";
+    }
+    updateCustomLabelFields(row);
+    update();
+  });
+  profileCheckbox.addEventListener("change", () => {
+    profileCheckbox.dataset.explicit = "true";
+  });
+  row.querySelectorAll("input, select").forEach((element) => element.addEventListener("input", update));
+  row.querySelector(".remove-label").addEventListener("click", () => {
+    row.remove();
+    update();
+  });
+  $("custom-labels").append(row);
+  updateCustomLabelFields(row);
+}
+
+function setCustomLabels(labels = []) {
+  $("custom-labels").replaceChildren();
+  labels.forEach(addCustomLabel);
+}
+
+function parseGpx(text) {
+  const xml = new DOMParser().parseFromString(text, "application/xml");
+  if (xml.querySelector("parsererror")) throw new Error("GPXを解析できません。XML形式を確認してください。");
+
+  const nodePoints = (nodes) => [...nodes].map((node) => {
+    const lat = Number(node.getAttribute("lat"));
+    const lon = Number(node.getAttribute("lon"));
+    const eleNode = [...node.children].find((child) => child.localName === "ele");
+    const timeNode = [...node.children].find((child) => child.localName === "time");
+    const ele = eleNode ? Number(eleNode.textContent) : null;
+    const time = timeNode?.textContent.trim() || null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    return { lat, lon, ele: Number.isFinite(ele) ? ele : null, time };
+  }).filter(Boolean);
+
+  let segments = [...xml.getElementsByTagNameNS("*", "trkseg")]
+    .map((seg) => nodePoints(seg.getElementsByTagNameNS("*", "trkpt")))
+    .filter((seg) => seg.length);
+
+  if (!segments.length) {
+    segments = [...xml.getElementsByTagNameNS("*", "rte")]
+      .map((rte) => nodePoints(rte.getElementsByTagNameNS("*", "rtept")))
+      .filter((seg) => seg.length);
+  }
+  if (segments.flat().length < 2) throw new Error("有効な経路点が2点以上必要です。");
+
+  let profileCumulative = 0;
+  segments.forEach((segment) => {
+    segment.forEach((point, pointIndex) => {
+      if (pointIndex > 0) profileCumulative += haversine(segment[pointIndex - 1], point);
+      point.profileDistance = profileCumulative;
+    });
+  });
+
+  const transportLinks = [];
+  segments = segments.flatMap((segment) => {
+    const split = [];
+    let current = [segment[0]];
+    for (let index = 1; index < segment.length; index++) {
+      const previous = segment[index - 1];
+      const point = segment[index];
+      const previousTime = previous.time ? new Date(previous.time).getTime() : NaN;
+      const pointTime = point.time ? new Date(point.time).getTime() : NaN;
+      const gapMs = pointTime - previousTime;
+      const gapDistance = haversine(previous, point);
+      if (Number.isFinite(gapMs) && gapMs >= 5 * 60 * 1000 && gapDistance >= 1000) {
+        split.push(current);
+        transportLinks.push({ from: previous, to: point, gapMs, gapDistance });
+        current = [point];
+      } else {
+        current.push(point);
+      }
+    }
+    split.push(current);
+    return split.filter((part) => part.length);
+  });
+
+  const waypoints = [...xml.getElementsByTagNameNS("*", "wpt")].map((node) => {
+    const point = nodePoints([node])[0];
+    if (!point) return null;
+    const nameNode = [...node.children].find((child) => child.localName === "name");
+    return { ...point, name: nameNode?.textContent.trim() || "地点" };
+  }).filter(Boolean);
+
+  let cumulative = 0;
+  const flat = [];
+  segments.forEach((segment, segmentIndex) => {
+    segment.forEach((point, pointIndex) => {
+      if (pointIndex > 0) cumulative += haversine(segment[pointIndex - 1], point);
+      point.distance = cumulative;
+      flat.push({ ...point, distance: cumulative, segmentIndex });
+    });
+  });
+  const directChildText = (element, name) =>
+    element ? [...element.children].find((child) => child.localName === name)?.textContent.trim() || "" : "";
+  const trackName = directChildText(xml.getElementsByTagNameNS("*", "trk")[0], "name");
+  const routeName = directChildText(xml.getElementsByTagNameNS("*", "rte")[0], "name");
+  const metadataName = directChildText(xml.getElementsByTagNameNS("*", "metadata")[0], "name");
+  return {
+    segments, flat, waypoints, transportLinks, totalDistance: cumulative,
+    profileStartDistance: 0, profileTotalDistance: profileCumulative,
+    name: trackName || routeName || metadataName,
+    startTime: flat.find((point) => point.time)?.time || null,
+    endTime: [...flat].reverse().find((point) => point.time)?.time || null
+  };
+}
+
+function combineRouteData(items) {
+  const missingTime = items.filter(({ data }) => !data.startTime);
+  if (items.length > 1 && missingTime.length) {
+    throw new Error(`複数GPXの並び順を判断できません：${missingTime.map(({ file }) => file.name).join("、")} に時刻データがありません。`);
+  }
+  const ordered = [...items].sort((a, b) => {
+    const timeDifference = new Date(a.data.startTime).getTime() - new Date(b.data.startTime).getTime();
+    return timeDifference || a.index - b.index;
+  });
+  const segments = [];
+  const flat = [];
+  const waypoints = [];
+  const transportLinks = [];
+  let distanceOffset = 0;
+  let profileDistanceOffset = 0;
+  let previousFileEnd = null;
+
+  ordered.forEach(({ data }) => {
+    const pointMap = new Map();
+    data.segments.forEach((segment) => {
+      const combinedSegment = segment.map((point) => {
+        const combinedPoint = {
+          ...point,
+          distance: distanceOffset + point.distance,
+          profileDistance: profileDistanceOffset + point.profileDistance
+        };
+        pointMap.set(point, combinedPoint);
+        return combinedPoint;
+      });
+      const segmentIndex = segments.length;
+      segments.push(combinedSegment);
+      combinedSegment.forEach((point) => flat.push({ ...point, segmentIndex }));
+    });
+    const currentFileStart = pointMap.get(data.segments[0][0]);
+    const currentFileEnd = pointMap.get(data.segments.at(-1).at(-1));
+    if (previousFileEnd && currentFileStart) {
+      const gapDistance = haversine(previousFileEnd, currentFileStart);
+      if (gapDistance >= 1000) {
+        const previousTime = previousFileEnd.time ? new Date(previousFileEnd.time).getTime() : NaN;
+        const currentTime = currentFileStart.time ? new Date(currentFileStart.time).getTime() : NaN;
+        transportLinks.push({
+          from: previousFileEnd,
+          to: currentFileStart,
+          gapMs: currentTime - previousTime,
+          gapDistance,
+          fileBoundary: true
+        });
+      }
+    }
+    (data.transportLinks || []).forEach((link) => {
+      const from = pointMap.get(link.from);
+      const to = pointMap.get(link.to);
+      if (from && to) transportLinks.push({ ...link, from, to });
+    });
+    waypoints.push(...data.waypoints);
+    distanceOffset += data.totalDistance;
+    profileDistanceOffset += data.profileTotalDistance;
+    previousFileEnd = currentFileEnd;
+  });
+
+  return {
+    segments,
+    flat,
+    waypoints,
+    transportLinks,
+    totalDistance: distanceOffset,
+    profileStartDistance: 0,
+    profileTotalDistance: profileDistanceOffset,
+    name: ordered.length === 1 ? ordered[0].data.name : "",
+    startTime: ordered[0].data.startTime,
+    endTime: [...ordered].reverse().find(({ data }) => data.endTime)?.data.endTime || null,
+    fileNames: ordered.map(({ file }) => file.name)
+  };
+}
+
+function derivedRouteData(source, predicate) {
+  const segments = source.segments
+    .map((segment) => segment.filter(predicate).map((point) => ({ ...point })))
+    .filter((segment) => segment.length >= 2);
+  if (!segments.length) throw new Error("指定範囲に経路点が2点以上ありません。切り出し範囲を広げてください。");
+
+  let cumulative = 0;
+  const flat = [];
+  segments.forEach((segment, segmentIndex) => {
+    segment.forEach((point, pointIndex) => {
+      if (pointIndex > 0) cumulative += haversine(segment[pointIndex - 1], point);
+      point.distance = cumulative;
+      flat.push({ ...point, distance: cumulative, segmentIndex });
+    });
+  });
+  const latitudeExtent = extent(flat, (point) => point.lat);
+  const longitudeExtent = extent(flat, (point) => point.lon);
+  const minLat = latitudeExtent.min;
+  const maxLat = latitudeExtent.max;
+  const minLon = longitudeExtent.min;
+  const maxLon = longitudeExtent.max;
+  const profileStartDistance = flat[0].profileDistance ?? flat[0].distance;
+  const profileEndDistance = flat.at(-1).profileDistance ?? flat.at(-1).distance;
+  return {
+    segments,
+    flat,
+    transportLinks: (source.transportLinks || []).filter(({ from, to }) => predicate(from) && predicate(to)),
+    totalDistance: cumulative,
+    profileStartDistance,
+    profileTotalDistance: Math.max(0, profileEndDistance - profileStartDistance),
+    name: source.name,
+    waypoints: source.waypoints.filter((point) =>
+      point.lat >= minLat && point.lat <= maxLat && point.lon >= minLon && point.lon <= maxLon
+    ),
+    startTime: flat.find((point) => point.time)?.time || null,
+    endTime: [...flat].reverse().find((point) => point.time)?.time || null
+  };
+}
+
+function dateTimeParts(value, timeZone) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hourCycle: "h23", timeZone
+  }).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+}
+
+function toDatetimeLocal(value, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+  if (!value) return "";
+  const parts = dateTimeParts(value, timeZone);
+  return parts ? `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}` : "";
+}
+
+function zonedDateTimeToTimestamp(value, timeZone) {
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return NaN;
+  const desired = Date.UTC(
+    Number(match[1]), Number(match[2]) - 1, Number(match[3]),
+    Number(match[4]), Number(match[5]), Number(match[6] || 0)
+  );
+  let timestamp = desired;
+  for (let index = 0; index < 3; index++) {
+    const parts = dateTimeParts(timestamp, timeZone);
+    if (!parts) return NaN;
+    const represented = Date.UTC(
+      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour), Number(parts.minute), Number(parts.second)
+    );
+    const correction = desired - represented;
+    timestamp += correction;
+    if (Math.abs(correction) < 1000) break;
+  }
+  return timestamp;
+}
+
+async function applyClip() {
+  const mode = $("clip-mode").value;
+  $("clip-distance-fields").hidden = mode !== "distance";
+  $("clip-time-fields").hidden = mode !== "time";
+  if (!sourceRouteData) return;
+  try {
+    if (mode === "distance") {
+      const start = Math.max(0, Number($("clip-distance-start").value) || 0) * 1000;
+      const end = Math.max(start, Number($("clip-distance-end").value) * 1000);
+      routeData = derivedRouteData(sourceRouteData, (point) => point.distance >= start && point.distance <= end);
+    } else if (mode === "time") {
+      const start = new Date($("clip-time-start").value).getTime();
+      const end = new Date($("clip-time-end").value).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end)) throw new Error("開始日時と終了日時を指定してください。");
+      routeData = derivedRouteData(sourceRouteData, (point) => {
+        const time = point.time ? new Date(point.time).getTime() : NaN;
+        return Number.isFinite(time) && time >= start && time <= end;
+      });
+    } else {
+      routeData = sourceRouteData;
+    }
+    await update();
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+}
+
+function haversine(a, b) {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLon = (b.lon - a.lon) * rad;
+  const q = Math.sin(dLat / 2) ** 2
+    + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLon / 2) ** 2;
+  return 6371008.8 * 2 * Math.atan2(Math.sqrt(q), Math.sqrt(1 - q));
+}
+
+function ascent(points, threshold) {
+  const elevations = points.map((p) => p.ele).filter(Number.isFinite);
+  if (elevations.length < 2) return null;
+  let gain = 0;
+  let anchor = elevations[0];
+  for (const value of elevations.slice(1)) {
+    const delta = value - anchor;
+    if (Math.abs(delta) >= threshold) {
+      if (delta > 0) gain += delta;
+      anchor = value;
+    }
+  }
+  return Math.round(gain);
+}
+
+const ascentCache = new WeakMap();
+
+function routeAscent(data, threshold) {
+  let cache = ascentCache.get(data);
+  if (!cache) {
+    cache = new Map();
+    ascentCache.set(data, cache);
+  }
+  if (!cache.has(threshold)) cache.set(threshold, ascent(data.flat, threshold));
+  return cache.get(threshold);
+}
+
+function sampled(points, limit) {
+  if (points.length <= limit) return points;
+  const step = (points.length - 1) / (limit - 1);
+  return Array.from({ length: limit }, (_, index) =>
+    points[Math.min(points.length - 1, Math.round(index * step))]
+  );
+}
+
+const previewDataCache = new WeakMap();
+
+function previewRouteData(data, pointLimit = 12000) {
+  if (data.flat.length <= pointLimit) return data;
+  const cached = previewDataCache.get(data);
+  if (cached) return cached;
+  const totalPoints = data.segments.reduce((sum, segment) => sum + segment.length, 0);
+  const segments = data.segments.map((segment) => sampled(
+    segment,
+    Math.max(2, Math.round(pointLimit * segment.length / totalPoints))
+  ));
+  const flat = [];
+  segments.forEach((segment, segmentIndex) => {
+    segment.forEach((point) => flat.push({ ...point, segmentIndex }));
+  });
+  const preview = { ...data, segments, flat };
+  previewDataCache.set(data, preview);
+  return preview;
+}
+
+function nearestDistancePoint(points, distanceMeters) {
+  let low = 0;
+  let high = points.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (points[middle].distance < distanceMeters) low = middle + 1;
+    else high = middle;
+  }
+  if (low === 0) return points[0];
+  return Math.abs(points[low].distance - distanceMeters) <
+    Math.abs(points[low - 1].distance - distanceMeters) ? points[low] : points[low - 1];
+}
+
+const timedPointsCache = new WeakMap();
+
+function nearestTimePoint(data, target) {
+  let points = timedPointsCache.get(data);
+  if (!points) {
+    points = data.flat.filter((point) => point.time && Number.isFinite(new Date(point.time).getTime()));
+    timedPointsCache.set(data, points);
+  }
+  if (!points.length) return null;
+  let low = 0;
+  let high = points.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (new Date(points[middle].time).getTime() < target) low = middle + 1;
+    else high = middle;
+  }
+  if (low === 0) return points[0];
+  const currentDifference = Math.abs(new Date(points[low].time).getTime() - target);
+  const previousDifference = Math.abs(new Date(points[low - 1].time).getTime() - target);
+  return currentDifference < previousDifference ? points[low] : points[low - 1];
+}
+
+function resolveCustomLabel(label, data, timeZoneSelection) {
+  if (label.mode === "distance") {
+    const distance = Number(label.distance) * 1000;
+    if (!Number.isFinite(distance)) return null;
+    return nearestDistancePoint(data.flat, clamp(distance, 0, data.totalDistance));
+  }
+  if (label.mode === "time") {
+    const timeZone = resolveTimeZone(timeZoneSelection, data.flat[0]);
+    const target = zonedDateTimeToTimestamp(label.time, timeZone);
+    if (!Number.isFinite(target)) return null;
+    return nearestTimePoint(data, target);
+  }
+  const lat = Number(label.lat);
+  const lon = Number(label.lon);
+  return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+    ? { lat, lon, ele: null }
+    : null;
+}
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+
+const tileCache = new Map();
+const routeBoundsCache = new WeakMap();
+
+function routeBounds(data) {
+  const cached = routeBoundsCache.get(data);
+  if (cached) return cached;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const point of data.flat) {
+    const projected = mercator(point);
+    if (projected.px < minX) minX = projected.px;
+    if (projected.px > maxX) maxX = projected.px;
+    if (projected.py < minY) minY = projected.py;
+    if (projected.py > maxY) maxY = projected.py;
+  }
+  const bounds = { minX, maxX, minY, maxY };
+  routeBoundsCache.set(data, bounds);
+  return bounds;
+}
+
+async function generateSvg(data, s, renderData = data) {
+  const { width: w, height: h } = s;
+  const margin = w * s.marginPercent / 100;
+  const routeTop = h * .12;
+  const routeBottom = h * .94;
+  const mapLeft = margin;
+  const mapRight = w - margin;
+  const all = renderData.flat;
+  const resolvedCustomLabels = s.customLabels
+    .map((label) => ({ label, point: resolveCustomLabel(label, data, s.timeZone) }))
+    .filter((item) => item.point);
+  const layoutPoints = [...all, ...resolvedCustomLabels.map((item) => item.point)];
+  const bounds = routeBounds(data);
+  let { minX, maxX, minY, maxY } = bounds;
+  resolvedCustomLabels.forEach(({ point }) => {
+    const projected = mercator(point);
+    minX = Math.min(minX, projected.px);
+    maxX = Math.max(maxX, projected.px);
+    minY = Math.min(minY, projected.py);
+    maxY = Math.max(maxY, projected.py);
+  });
+  const spanX = Math.max(maxX - minX, 1e-9);
+  const spanY = Math.max(maxY - minY, 1e-9);
+  const scale = Math.min((mapRight - mapLeft) / spanX, (routeBottom - routeTop) / spanY)
+    * .84 * s.routeScale / 100;
+  const offsetX = (mapLeft + mapRight) / 2 - (minX + maxX) / 2 * scale + w * s.routeOffsetX / 100;
+  const offsetY = (routeTop + routeBottom) / 2 - (minY + maxY) / 2 * scale + h * s.routeOffsetY / 100;
+  const xy = (p) => {
+    const q = mercator(p);
+    return [q.px * scale + offsetX, q.py * scale + offsetY];
+  };
+  const sans = "Hiragino Sans, Yu Gothic, sans-serif";
+  const fs = Math.max(14, w * .024);
+  const infoFs = fs * s.infoScale / 100;
+  const small = Math.max(10, w * (8 / 750));
+  const linePx = Math.max(1, 12.8 * (w / 2400) * (s.routeWidthMm / .5));
+  const ascentM = routeAscent(data, s.elevationThreshold);
+
+  const routePointLimit = Math.max(800, Math.min(6000, Math.round((w + h) * 1.5)));
+  const pointsPerSegment = Math.max(2, Math.floor(routePointLimit / renderData.segments.length));
+  const renderSegments = renderData.segments.map((segment) => sampled(segment, pointsPerSegment));
+  const paths = renderSegments.map((segment) => segment.map((p, i) => {
+    const [x, y] = xy(p);
+    return `${i ? "L" : "M"}${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ")).join("");
+  const transportPaths = (data.transportLinks || []).map(({ from, to }) => {
+    const [fromX, fromY] = xy(from);
+    const [toX, toY] = xy(to);
+    return `M${fromX.toFixed(2)},${fromY.toFixed(2)} L${toX.toFixed(2)},${toY.toFixed(2)}`;
+  }).join(" ");
+
+  const first = data.flat[0], last = data.flat.at(-1);
+  const [startX, startY] = xy(first);
+  const [finishX, finishY] = xy(last);
+  const labels = [];
+  const labelScale = s.labelScale / 100;
+  const markerScale = s.markerScale / 100;
+  const endpointFontSize = fs * .66 * labelScale;
+  if (s.startName) labels.push(pointLabel(startX, startY, s.startName, first.ele, s.startLabelPosition, w, h, endpointFontSize, small));
+  if (s.finishName) labels.push(pointLabel(finishX, finishY, s.finishName, last.ele, s.finishLabelPosition, w, h, endpointFontSize, small));
+
+  const waypointSvg = s.showWaypoints ? data.waypoints.map((point) => {
+    const [x, y] = xy(point);
+    return `<circle cx="${x}" cy="${y}" r="${Math.max(4, h * .004) * markerScale}" fill="#111"/>
+      ${pointLabel(x, y, point.name, point.ele, s.labelPosition, w, h, fs * .75 * labelScale, small * .8)}`;
+  }).join("") : "";
+  const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
+    const [x, y] = xy(point);
+    const markerSize = Math.max(5, h * .005) * markerScale;
+    return `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>
+      ${pointLabel(x, y, label.name, null, label.position, w, h, fs * .66 * labelScale, small)}`;
+  }).join("");
+
+  const profileFontSize = small * s.elevationScale / 100;
+  const profileBox = positionedBox(
+    s.profilePosition,
+    w,
+    h,
+    margin,
+    w * s.profileBoxWidth / 100,
+    h * s.profileBoxHeight / 100,
+    h * .15
+  );
+  const profileOffsetX = w * s.profileOffsetX / 100;
+  const profileOffsetY = h * s.profileOffsetY / 100;
+  let profileLeft = profileBox.left + profileOffsetX;
+  let profileRight = profileBox.right + profileOffsetX;
+  const profileTop = profileBox.top + profileOffsetY;
+  const profileBottom = profileBox.bottom + profileOffsetY;
+  const requiredLeftGutter = profileFontSize * 4.2;
+  if (s.profilePosition.endsWith("left")) {
+    const availableShift = Math.max(0, w - margin - profileRight);
+    const shift = Math.min(requiredLeftGutter, availableShift);
+    profileLeft += shift;
+    profileRight += shift;
+  } else if (!s.profilePosition.endsWith("right")) {
+    const availableShift = Math.max(0, w - profileRight);
+    const shift = Math.min(requiredLeftGutter / 2, availableShift);
+    profileLeft += shift;
+    profileRight += shift;
+  }
+  const profile = s.showProfile
+    ? profileSvg(renderData, s, profileLeft, profileRight, profileTop, profileBottom, profileFontSize, resolvedCustomLabels)
+    : "";
+  const japan = layoutPoints.every((p) => p.lat >= 20 && p.lat <= 46 && p.lon >= 122 && p.lon <= 154);
+  const background = s.showMap
+    ? await tileBackgroundSvg({ w, h, scale, offsetX, offsetY, minX, maxX, minY, maxY, japan })
+    : { svg: "", attribution: "" };
+  const arrows = s.showArrows
+    ? renderSegments.map((segment) => arrowSvg(segment.map((point) => {
+      const [x, y] = xy(point);
+      return { x, y };
+    }), s.arrowSizeMm / 25.4 * s.dpi)).join("")
+    : "";
+  const centerLat = all.reduce((sum, point) => sum + point.lat, 0) / all.length;
+  const scaleSide = s.showProfile && s.profilePosition.endsWith("left") ? "right" : "left";
+  const scaleBar = s.showMap ? scaleBarSvg(w, h, margin, scale, centerLat, small, scaleSide) : "";
+  const attributionOnLeft = scaleSide === "right";
+  const attributionX = attributionOnLeft ? margin : w - margin;
+  const attributionAnchor = attributionOnLeft ? "start" : "end";
+  const dateLines = [];
+  const startTimeZone = resolveTimeZone(s.timeZone, data.flat[0]);
+  const endTimeZone = resolveTimeZone(s.timeZone, data.flat.at(-1));
+  if (s.showDatetime && data.startTime && data.endTime) {
+    dateLines.push(`開始 ${formatGpxTime(data.startTime, startTimeZone)}　終了 ${formatGpxTime(data.endTime, endTimeZone)}`);
+  } else if (s.showDatetime && data.startTime) {
+    dateLines.push(`開始 ${formatGpxTime(data.startTime, startTimeZone)}`);
+  } else if (s.showDatetime && data.endTime) {
+    dateLines.push(`終了 ${formatGpxTime(data.endTime, endTimeZone)}`);
+  }
+  const info = infoBlockPosition(s.metaPosition, w, h, margin, infoFs, 1 + dateLines.length);
+  const distanceValue = (data.totalDistance / 1000).toFixed(1);
+  const metricText = `<text x="${info.x}" y="${info.metaY}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .18}">
+    距離 <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `　獲得標高 <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
+  </text>`;
+  const dateTexts = dateLines.map((line, index) =>
+    `<text x="${info.x}" y="${info.metaY + (index + 1) * infoFs * .78}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .16}">${esc(line)}</text>`
+  ).join("");
+
+  const renderingHints = s.antialias
+    ? 'shape-rendering="geometricPrecision" text-rendering="optimizeLegibility"'
+    : 'shape-rendering="crispEdges" text-rendering="optimizeSpeed"';
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ${renderingHints} role="img" aria-labelledby="svg-title svg-desc">
+  <title id="svg-title">${esc(s.sectionTitle)} 経路図</title>
+  <desc id="svg-desc">距離 ${(data.totalDistance / 1000).toFixed(1)} kmの経路と標高推移</desc>
+  <defs><filter id="map-gray"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".55" intercept=".42"/><feFuncG type="linear" slope=".55" intercept=".42"/><feFuncB type="linear" slope=".55" intercept=".42"/></feComponentTransfer></filter></defs>
+  <rect width="${w}" height="${h}" fill="#fff"/>
+  ${background.svg}
+  <g fill="#111" font-family="${sans}">
+    <g text-anchor="${info.anchor}" paint-order="stroke" stroke="#fff">
+      <text x="${info.x}" y="${info.titleY}" font-size="${infoFs}" font-weight="800" stroke-width="${infoFs * .2}">${esc(s.sectionTitle)}</text>
+      ${metricText}
+      ${dateTexts}
+    </g>
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="${paths}" stroke="#fff" stroke-width="${linePx * 2.7}"/>
+      <path d="${paths}" stroke="#111" stroke-width="${linePx}"/>
+      ${transportPaths ? `<path d="${transportPaths}" stroke="#fff" stroke-width="${linePx * 2.7}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>
+      <path d="${transportPaths}" stroke="#111" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
+    </g>
+    ${arrows}
+    ${s.startName ? `<circle cx="${startX}" cy="${startY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
+    ${s.finishName ? `<circle cx="${finishX}" cy="${finishY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
+    ${labels.join("")}
+    ${waypointSvg}
+    ${customLabelSvg}
+    ${profile}
+    ${scaleBar}
+    <text x="${attributionX}" y="${h - margin * .48}" text-anchor="${attributionAnchor}" font-size="${small * .68}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${small * .2}">${esc(background.attribution)}</text>
+  </g>
+</svg>`;
+}
+
+function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left") {
+  const earthCircumference = 40075016.686;
+  const metersPerPixel = earthCircumference * Math.cos(latitude * Math.PI / 180) / projectionScale;
+  const targetMeters = metersPerPixel * w * .12;
+  const magnitude = 10 ** Math.floor(Math.log10(targetMeters));
+  const normalized = targetMeters / magnitude;
+  const factor = normalized >= 5 ? 5 : normalized >= 2 ? 2 : 1;
+  const distanceMeters = factor * magnitude;
+  const length = distanceMeters / metersPerPixel;
+  const x = side === "right" ? w - margin - length : margin;
+  const y = h - margin * .48;
+  const segment = length / 2;
+  const label = distanceMeters >= 1000
+    ? `${Number((distanceMeters / 1000).toPrecision(3))} km`
+    : `${Math.round(distanceMeters)} m`;
+  const stroke = Math.max(1.5, h * .0014);
+  return `<g font-family='"Hiragino Sans","Yu Gothic",sans-serif' paint-order="stroke" stroke="#fff" stroke-width="${stroke * 3}">
+    <rect x="${x}" y="${y - fs * .42}" width="${segment}" height="${fs * .42}" fill="#111"/>
+    <rect x="${x + segment}" y="${y - fs * .42}" width="${segment}" height="${fs * .42}" fill="#fff" stroke="#111" stroke-width="${stroke}"/>
+    <line x1="${x}" y1="${y - fs * .55}" x2="${x}" y2="${y + fs * .12}" stroke="#111" stroke-width="${stroke}"/>
+    <line x1="${x + segment}" y1="${y - fs * .55}" x2="${x + segment}" y2="${y + fs * .12}" stroke="#111" stroke-width="${stroke}"/>
+    <line x1="${x + length}" y1="${y - fs * .55}" x2="${x + length}" y2="${y + fs * .12}" stroke="#111" stroke-width="${stroke}"/>
+    <text x="${x + length / 2}" y="${y + fs * 1.05}" text-anchor="middle" stroke="#fff" stroke-width="${fs * .24}" fill="#111" font-size="${fs}">${label}</text>
+  </g>`;
+}
+
+function mercator(point) {
+  const lat = clamp(point.lat, -85.05112878, 85.05112878) * Math.PI / 180;
+  return {
+    px: (point.lon + 180) / 360,
+    py: (1 - Math.log(Math.tan(lat) + 1 / Math.cos(lat)) / Math.PI) / 2
+  };
+}
+
+function infoBlockPosition(position, w, h, margin, fs, lineCount) {
+  const left = position.endsWith("left");
+  const right = position.endsWith("right");
+  const top = position.startsWith("top");
+  const bottom = position.startsWith("bottom");
+  const bottomMetaY = h - margin * .55 - (lineCount - 1) * fs * .78;
+  const centerBlockHeight = fs * (2.12 + (lineCount - 1) * .78);
+  const centerTitleY = (h - centerBlockHeight) / 2 + fs;
+  const titleY = top
+    ? margin + fs * .8
+    : bottom ? bottomMetaY - fs * 1.12 : centerTitleY;
+  return {
+    x: left ? margin : right ? w - margin : w / 2,
+    titleY,
+    metaY: titleY + fs * 1.12,
+    anchor: left ? "start" : right ? "end" : "middle"
+  };
+}
+
+function resolveTimeZone(selection, point) {
+  if (selection === "auto") {
+    try {
+      return point ? tzlookup(point.lat, point.lon) : "Asia/Tokyo";
+    } catch {
+      return "Asia/Tokyo";
+    }
+  }
+  if (selection === "browser") return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    new Intl.DateTimeFormat("ja-JP", { timeZone: selection }).format();
+    return selection;
+  } catch {
+    throw new Error(`表示タイムゾーンが正しくありません：${selection}`);
+  }
+}
+
+function updateTimeZoneHint(data) {
+  const selection = $("time-zone").value.trim() || "auto";
+  try {
+    if (!data?.flat.length) {
+      $("detected-time-zone").textContent = selection === "auto"
+        ? "自動判定（判定できない場合は Asia/Tokyo）"
+        : `表示：${resolveTimeZone(selection, null)}`;
+      return;
+    }
+    const startTimeZone = resolveTimeZone(selection, data.flat[0]);
+    const endTimeZone = resolveTimeZone(selection, data.flat.at(-1));
+    $("detected-time-zone").textContent = startTimeZone === endTimeZone
+      ? `判定結果：${startTimeZone}`
+      : `判定結果：開始 ${startTimeZone}／終了 ${endTimeZone}`;
+  } catch {
+    $("detected-time-zone").textContent = `無効なタイムゾーン：${selection}`;
+  }
+}
+
+function formatGpxTime(value, timeZone) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("ja-JP", {
+    month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    hourCycle: "h23", timeZone
+  }).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return `${parts.month}/${parts.day} ${Number(parts.hour)}:${parts.minute}`;
+}
+
+function positionedBox(position, w, h, margin, boxW, boxH, topInset) {
+  const leftSide = position.endsWith("left");
+  const rightSide = position.endsWith("right");
+  const topSide = position.startsWith("top");
+  const bottomSide = position.startsWith("bottom");
+  const left = leftSide ? margin : rightSide ? w - margin - boxW : (w - boxW) / 2;
+  const top = topSide ? topInset : bottomSide ? h - margin - boxH : (h - boxH) / 2;
+  return { left, right: left + boxW, top, bottom: top + boxH };
+}
+
+async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
+  let zoom = clamp(Math.round(Math.log2(scale / 256)), japan ? 5 : 1, japan ? 18 : 19);
+  const viewMinX = (0 - offsetX) / scale;
+  const viewMaxX = (w - offsetX) / scale;
+  const viewMinY = (0 - offsetY) / scale;
+  const viewMaxY = (h - offsetY) / scale;
+  let range;
+  do {
+    const count = 2 ** zoom;
+    range = {
+      count,
+      x0: Math.floor(viewMinX * count),
+      x1: Math.floor(viewMaxX * count),
+      y0: Math.floor(viewMinY * count),
+      y1: Math.floor(viewMaxY * count)
+    };
+    if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= 64) break;
+    zoom--;
+  } while (zoom > (japan ? 5 : 1));
+  const { count, x0, x1, y0, y1 } = range;
+  const source = japan ? "gsi" : "osm";
+  const tiles = [];
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      if (ty < 0 || ty >= count) continue;
+      const wrappedX = ((tx % count) + count) % count;
+      const url = japan
+        ? `https://cyberjapandata.gsi.go.jp/xyz/pale/${zoom}/${wrappedX}/${ty}.png`
+        : `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${ty}.png`;
+      tiles.push({ tx, ty, url });
+    }
+  }
+  const rendered = await Promise.all(tiles.map(async (tile) => {
+    try {
+      const href = await tileDataUrl(tile.url);
+      const x = tile.tx / count * scale + offsetX;
+      const y = tile.ty / count * scale + offsetY;
+      const size = scale / count + 1;
+      return `<image href="${href}" x="${x}" y="${y}" width="${size}" height="${size}" preserveAspectRatio="none"/>`;
+    } catch {
+      return "";
+    }
+  }));
+  const loaded = rendered.filter(Boolean);
+  const attribution = source === "gsi" ? "出典：国土地理院「地理院タイル」" : "© OpenStreetMap contributors";
+  if (!loaded.length) {
+    return {
+      svg: "",
+      attribution: `${attribution}（背景地図を取得できませんでした）`,
+      failed: true
+    };
+  }
+  return {
+    svg: `<g filter="url(#map-gray)" opacity=".72">${loaded.join("")}</g>`,
+    attribution,
+    failed: false
+  };
+}
+
+async function tileDataUrl(url) {
+  if (tileCache.has(url)) return tileCache.get(url);
+  const promise = fetch(url).then(async (response) => {
+    if (!response.ok) throw new Error(`地図タイル ${response.status}`);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  });
+  tileCache.set(url, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    tileCache.delete(url);
+    throw error;
+  }
+}
+
+function arrowSvg(points, size) {
+  if (points.length < 5) return "";
+  const targets = [0.22, 0.48, 0.74];
+  return targets.map((ratio) => {
+    const i = clamp(Math.floor((points.length - 2) * ratio), 1, points.length - 2);
+    const a = points[i - 1], b = points[i + 1];
+    const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+    const x = points[i].x, y = points[i].y;
+    return `<g transform="translate(${x} ${y}) rotate(${angle})">
+      <path d="M${-size * .7},${-size * .72} L${size * .65},0 L${-size * .7},${size * .72} Z" fill="#111" stroke="#fff" stroke-width="${size * .24}" paint-order="stroke"/>
+    </g>`;
+  }).join("");
+}
+
+function pointLabel(x, y, name, ele, position, w, h, fs, small) {
+  const left = position === "left" || position.endsWith("-left");
+  const right = position === "right" || position.endsWith("-right");
+  const top = position === "top" || position.startsWith("top-");
+  const bottom = position === "bottom" || position.startsWith("bottom-");
+  const diagonalScale = position.includes("-") ? Math.SQRT1_2 : 1;
+  const anchor = left ? "end" : right ? "start" : "middle";
+  const dx = (left ? -fs * .65 : right ? fs * .65 : 0) * diagonalScale;
+  const elevation = Number.isFinite(ele) ? `${Math.round(ele).toLocaleString("ja-JP")} m` : "";
+  const verticalOffset = top
+    ? elevation ? -small * 2.25 : -fs * .65
+    : bottom ? fs * 1.35
+    : elevation && (position === "left" || position === "right") ? -small * .625
+    : position === "left" || position === "right" ? fs * .35
+    : 0;
+  const dy = (top || bottom) ? verticalOffset * diagonalScale : verticalOffset;
+  const safeX = clamp(x + dx, w * .04, w * .96);
+  const safeY = clamp(y + dy, h * .08, h * .91);
+  return `<g font-family='"Hiragino Sans","Yu Gothic",sans-serif' text-anchor="${anchor}">
+    <text x="${safeX}" y="${safeY}" font-size="${fs}" font-weight="600" paint-order="stroke" stroke="#fff" stroke-width="${fs * .28}">${esc(name)}</text>
+    ${elevation ? `<text x="${safeX}" y="${safeY + small * 1.25}" font-size="${small}" fill="#555" paint-order="stroke" stroke="#fff" stroke-width="${small * .3}">${elevation}</text>` : ""}
+  </g>`;
+}
+
+function profileSvg(data, s, left, right, top, bottom, fs, customLabels = []) {
+  const allElevationPoints = data.flat.filter((p) => Number.isFinite(p.ele));
+  if (allElevationPoints.length < 2) return "";
+  const profileLabels = customLabels.filter(({ label }) => label.showOnProfile);
+  const annotationFontSize = fs * .67;
+  const annotationMeasure = document.createElement("canvas").getContext("2d");
+  annotationMeasure.font = `600 ${annotationFontSize}px "Hiragino Sans","Yu Gothic",sans-serif`;
+  const preparedAnnotations = profileLabels.map(({ label, point }) => {
+    let routePoint = point;
+    if (!Number.isFinite(routePoint.distance) || !Number.isFinite(routePoint.ele)) {
+      routePoint = allElevationPoints.reduce((nearest, candidate) =>
+        !nearest || haversine(candidate, point) < haversine(nearest, point) ? candidate : nearest, null);
+    }
+    if (!routePoint || !Number.isFinite(routePoint.distance) || !Number.isFinite(routePoint.ele)) return null;
+    const elevationLabel = Math.round(routePoint.ele).toLocaleString("ja-JP");
+    const annotationText = s.showProfileElevation ? `${elevationLabel}m${label.name}` : label.name;
+    const advance = annotationMeasure.measureText(annotationText).width
+      + (s.showProfileElevation ? annotationFontSize * .62 : 0);
+    return { label, routePoint, elevationLabel, advance };
+  }).filter(Boolean);
+  const maxAnnotationAdvance = Math.max(1, ...preparedAnnotations.map(({ advance }) => advance));
+  const annotationInset = fs * 1.08;
+  const annotationBandHeight = preparedAnnotations.length
+    ? maxAnnotationAdvance + annotationInset
+    : fs * .75;
+  const plotTop = top + annotationBandHeight;
+  const points = sampled(allElevationPoints, Math.max(500, Math.min(2400, Math.round(right - left))));
+  const elevationExtent = extent(allElevationPoints, (point) => point.ele);
+  const dataMin = elevationExtent.min;
+  const dataMax = elevationExtent.max;
+  const low = Math.max(0, Math.floor(dataMin / 100) * 100);
+  const roundedHigh = Math.max(low + 100, Math.ceil(dataMax / 100) * 100);
+  const elevationStep = Math.max(100, Math.ceil((roundedHigh - low) / 3 / 100) * 100);
+  const elevationTickCount = Math.max(1, Math.ceil((roundedHigh - low) / elevationStep));
+  const high = low + elevationStep * elevationTickCount;
+  const profileStartDistance = data.profileStartDistance || 0;
+  const profileTotalDistance = data.profileTotalDistance || data.totalDistance;
+  const distanceKm = profileTotalDistance / 1000;
+  const distanceStep = Math.max(10, Math.floor(distanceKm / 4 / 10) * 10);
+  const x = (p) => {
+    const profileDistance = p.profileDistance ?? p.distance;
+    return left + ((profileDistance - profileStartDistance) / profileTotalDistance) * (right - left);
+  };
+  const y = (p) => bottom - clamp((p.ele - low) / (high - low), 0, 1) * (bottom - plotTop);
+  const path = points.map((p, i) => `${i ? "L" : "M"}${x(p).toFixed(2)},${y(p).toFixed(2)}`).join(" ");
+  const area = `${path} L${x(points.at(-1))},${bottom} L${x(points[0])},${bottom} Z`;
+  const xTickCount = Math.floor(distanceKm / distanceStep + 1e-9);
+  const xTicks = Array.from({ length: xTickCount + 1 }, (_, index) => {
+    const tickDistance = index * distanceStep;
+    const ratio = tickDistance / distanceKm;
+    const tx = left + ratio * (right - left);
+    const anchor = index === 0 ? "start" : ratio >= .999 ? "end" : "middle";
+    return `<line x1="${tx}" y1="${bottom}" x2="${tx}" y2="${bottom + fs * .45}" stroke="#777"/>
+      <text x="${tx}" y="${bottom + fs * 1.5}" text-anchor="${anchor}" font-size="${fs * .8}" fill="#666">${tickDistance} km</text>`;
+  }).join("");
+  const yTicks = Array.from({ length: elevationTickCount + 1 }, (_, index) => {
+    const value = low + index * elevationStep;
+    const ty = bottom - index / elevationTickCount * (bottom - plotTop);
+    return `<line x1="${left - fs * .35}" y1="${ty}" x2="${right}" y2="${ty}" stroke="#bbb" stroke-width="${Math.max(1, s.height * .0006)}"/>
+      <text x="${left - fs * .5}" y="${ty + fs * .28}" text-anchor="end" font-size="${fs * .78}" fill="#555">${value} m</text>`;
+  }).join("");
+  const annotations = preparedAnnotations.map(({ label, routePoint, elevationLabel }) => {
+    const px = x(routePoint);
+    const py = y(routePoint);
+    const textX = clamp(px, left + annotationFontSize * .25, right - annotationFontSize * .25);
+    const textY = plotTop - fs * .35;
+    return `<g>
+      <line x1="${px}" y1="${plotTop}" x2="${px}" y2="${py}" stroke="#777" stroke-width="${Math.max(1, s.height * .00065)}" stroke-dasharray="${fs * .22} ${fs * .22}"/>
+      <circle cx="${px}" cy="${py}" r="${Math.max(2.2, fs * .16)}" fill="#111" stroke="#fff" stroke-width="${Math.max(1, fs * .1)}"/>
+      <text x="${textX}" y="${textY}" transform="rotate(-90 ${textX} ${textY})" text-anchor="start" dominant-baseline="middle" font-size="${annotationFontSize}" font-weight="600" fill="#111" paint-order="stroke" stroke="#fff" stroke-width="${annotationFontSize * .3}">${s.showProfileElevation ? `${esc(elevationLabel)}<tspan dx=".12em">m</tspan><tspan dx=".5em">${esc(label.name)}</tspan>` : esc(label.name)}</text>
+    </g>`;
+  }).join("");
+  const backgroundLeft = Math.max(0, left - fs * 4.5);
+  const backgroundRight = right + fs;
+  return `<g font-family='"Hiragino Sans","Yu Gothic",sans-serif'>
+    <rect x="${backgroundLeft}" y="${top}" width="${backgroundRight - backgroundLeft}" height="${bottom - top + fs * 2}" fill="#fff" fill-opacity=".86"/>
+    <path d="${area}" fill="#ededeb"/>
+    ${yTicks}
+    <path d="${path}" fill="none" stroke="#111" stroke-width="${Math.max(1, s.profileWidthMm / 25.4 * s.dpi)}"/>
+    ${annotations}
+    <line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="#999"/>
+    ${xTicks}
+  </g>`;
+}
+
+async function update() {
+  const version = ++renderVersion;
+  const s = state();
+  $("size-summary").value = `${s.width.toLocaleString()} × ${s.height.toLocaleString()} px\n${s.widthMm.toFixed(1)} × ${s.heightMm.toFixed(1)} mm（${s.dpi} DPI）`;
+  if (!routeData) return;
+  try {
+    setStatus("経路を生成しています…");
+    const previewData = previewRouteData(routeData);
+    if (s.showMap) {
+      const provisionalSvg = await generateSvg(routeData, { ...s, showMap: false }, previewData);
+      if (version !== renderVersion) return;
+      currentSvg = provisionalSvg;
+      $("preview").innerHTML = currentSvg;
+      $("empty-preview").hidden = true;
+      $("download-png").disabled = false;
+      $("download-svg").disabled = false;
+      setStatus("経路を表示しました。背景地図を読み込んでいます…");
+    }
+    const svg = await generateSvg(routeData, s, previewData);
+    if (version !== renderVersion) return;
+    currentSvg = svg;
+    $("preview").innerHTML = currentSvg;
+    $("empty-preview").hidden = true;
+    $("download-png").disabled = false;
+    $("download-svg").disabled = false;
+    const missingElevation = routeData.flat.every((p) => !Number.isFinite(p.ele));
+    const excludedTransportCount = routeData.transportLinks?.length || 0;
+    const excludedTransportText = excludedTransportCount
+      ? `、移動区間${excludedTransportCount.toLocaleString()}件を距離から除外`
+      : "";
+    setStatus(missingElevation
+      ? "経路を生成しました。標高データがないため標高図は省略されます。"
+      : `経路を生成しました。${routeData.flat.length.toLocaleString()}点、${routeData.segments.length}セグメント${excludedTransportText}。`);
+  } catch (error) {
+    if (version !== renderVersion) return;
+    setStatus(error.message, true);
+    $("download-png").disabled = true;
+    $("download-svg").disabled = true;
+  }
+}
+
+async function loadGpxFiles(files) {
+  try {
+    const selectedFiles = [...files];
+    if (!selectedFiles.length) return;
+    const parsedItems = await Promise.all(selectedFiles.map(async (file, index) => ({
+      file,
+      index,
+      data: parseGpx(await file.text())
+    })));
+    sourceRouteData = combineRouteData(parsedItems);
+    routeData = sourceRouteData;
+    if (sourceRouteData.name) $("section-title").value = sourceRouteData.name;
+    $("clip-mode").value = "all";
+    $("clip-distance-start").value = "0";
+    $("clip-distance-end").value = (sourceRouteData.totalDistance / 1000).toFixed(1);
+    $("clip-time-start").value = toDatetimeLocal(sourceRouteData.startTime);
+    $("clip-time-end").value = toDatetimeLocal(sourceRouteData.endTime);
+    const timeOption = $("clip-mode").querySelector('option[value="time"]');
+    timeOption.disabled = !sourceRouteData.startTime || !sourceRouteData.endTime;
+    timeOption.textContent = timeOption.disabled ? "時刻（時刻データなし）" : "時刻";
+    $("clip-distance-fields").hidden = true;
+    $("clip-time-fields").hidden = true;
+    $("file-name").textContent = sourceRouteData.fileNames.length === 1
+      ? sourceRouteData.fileNames[0]
+      : `${sourceRouteData.fileNames.length}ファイル：${sourceRouteData.fileNames.join(" → ")}`;
+    updateTimeZoneHint(sourceRouteData);
+    await update();
+  } catch (error) {
+    routeData = null;
+    sourceRouteData = null;
+    setStatus(error.message, true);
+  }
+}
+
+function setStatus(message, error = false) {
+  $("status").textContent = message;
+  $("status").classList.toggle("error", error);
+}
+
+function filename(s, extension) {
+  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "ルート";
+  return `${safeTitle}_${s.width}x${s.height}_${s.dpi}dpi.${extension}`;
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function rasterizeSvg(svg, width, height, contextOptions = {}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", contextOptions);
+  if (!ctx) throw new Error("画像変換用のCanvasを作成できませんでした。");
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    ctx.drawImage(image, 0, 0, width, height);
+    return { canvas, ctx };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function textMask(svg, width, height, includeStroke) {
+  const xml = new DOMParser().parseFromString(svg, "image/svg+xml");
+  if (xml.querySelector("parsererror")) throw new Error("文字マスク用SVGを解析できませんでした。");
+  const keep = new Set(["svg", "g", "text", "tspan"]);
+  [...xml.querySelectorAll("*")].reverse().forEach((element) => {
+    if (!keep.has(element.localName)) element.remove();
+  });
+  xml.querySelectorAll("g").forEach((group) => {
+    group.removeAttribute("filter");
+    group.setAttribute("fill", "#000");
+    group.setAttribute("stroke", "#000");
+  });
+  xml.querySelectorAll("text, tspan").forEach((text) => {
+    text.setAttribute("fill", "#000");
+    text.setAttribute("stroke", includeStroke ? "#000" : "none");
+    text.removeAttribute("paint-order");
+  });
+  const maskSvg = new XMLSerializer().serializeToString(xml.documentElement);
+  const { ctx } = await rasterizeSvg(maskSvg, width, height, {
+    alpha: true,
+    willReadFrequently: true
+  });
+  return ctx.getImageData(0, 0, width, height).data;
+}
+
+async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+  if (!ctx) throw new Error("画像変換用のCanvasを作成できませんでした。");
+  ctx.imageSmoothingEnabled = antialias;
+  if (antialias && "imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, width, height);
+  let rendered = false;
+  const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+  const svgUrl = URL.createObjectURL(svgBlob);
+  try {
+    const image = new Image();
+    image.src = svgUrl;
+    await image.decode();
+    ctx.drawImage(image, 0, 0, width, height);
+    rendered = true;
+  } catch {
+    rendered = false;
+  } finally {
+    URL.revokeObjectURL(svgUrl);
+  }
+  if (!rendered) {
+    try {
+      const xml = new DOMParser().parseFromString(svg, "image/svg+xml");
+      xml.querySelectorAll("text").forEach((text) => {
+        text.setAttribute("stroke", "none");
+        if (!text.hasAttribute("fill")) text.setAttribute("fill", "#111");
+        text.removeAttribute("paint-order");
+      });
+      const fallbackSvg = new XMLSerializer().serializeToString(xml.documentElement);
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, width, height);
+      const renderer = Canvg.fromString(ctx, fallbackSvg, {
+        ignoreAnimation: true,
+        ignoreMouse: true,
+        ignoreDimensions: true
+      });
+      await renderer.render();
+    } catch (error) {
+      throw new Error(`SVG描画エンジンでの変換に失敗しました：${error.message}`);
+    }
+  }
+  try {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const rgba = imageData.data;
+    if (!antialias) {
+      const [textCoverage, textFill] = await Promise.all([
+        textMask(svg, width, height, true),
+        textMask(svg, width, height, false)
+      ]);
+      for (let i = 0; i < rgba.length; i += 4) {
+        if (textCoverage[i + 3] > 0) {
+          rgba[i] = 255;
+          rgba[i + 1] = 255;
+          rgba[i + 2] = 255;
+        }
+        if (textFill[i + 3] >= 128) {
+          rgba[i] = 17;
+          rgba[i + 1] = 17;
+          rgba[i + 2] = 17;
+        }
+      }
+    }
+    const raw = new Uint8Array((width + 1) * height);
+    for (let y = 0; y < height; y++) {
+      const row = y * (width + 1);
+      raw[row] = 0;
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        raw[row + 1 + x] = Math.round(rgba[i] * .2126 + rgba[i + 1] * .7152 + rgba[i + 2] * .0722);
+      }
+    }
+    if (!("CompressionStream" in window)) throw new Error("このブラウザはグレースケールPNG圧縮に対応していません。SVGをご利用ください。");
+    const stream = new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"));
+    const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+    const ppm = Math.round(dpi / .0254);
+    return new Blob([pngSignature(), pngChunk("IHDR", ihdr(width, height)), pngChunk("pHYs", phys(ppm)), pngChunk("IDAT", compressed), pngChunk("IEND", new Uint8Array())], { type: "image/png" });
+  } catch (error) {
+    if (error.message?.includes("対応していません")) throw error;
+    throw new Error(`PNGデータの生成に失敗しました：${error.message}`);
+  }
+}
+
+const be32 = (value) => new Uint8Array([(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255]);
+const pngSignature = () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+function ihdr(w, h) {
+  return concat(be32(w), be32(h), new Uint8Array([8, 0, 0, 0, 0]));
+}
+function phys(ppm) {
+  return concat(be32(ppm), be32(ppm), new Uint8Array([1]));
+}
+function concat(...arrays) {
+  const result = new Uint8Array(arrays.reduce((n, a) => n + a.length, 0));
+  let offset = 0;
+  arrays.forEach((a) => { result.set(a, offset); offset += a.length; });
+  return result;
+}
+function pngChunk(type, data) {
+  const typeBytes = new TextEncoder().encode(type);
+  const body = concat(typeBytes, data);
+  return concat(be32(data.length), body, be32(crc32(body)));
+}
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+$("gpx-file").addEventListener("change", (event) => loadGpxFiles(event.target.files));
+async function loadSample() {
+  try {
+    const response = await fetch("sample.gpx");
+    if (!response.ok) throw new Error();
+    const blob = await response.blob();
+    await loadGpxFiles([new File([blob], "sample.gpx", { type: "application/gpx+xml" })]);
+  } catch {
+    setStatus("同梱サンプルを読むにはローカルサーバーで開いてください。", true);
+  }
+}
+$("load-sample").addEventListener("click", loadSample);
+$("add-custom-label").addEventListener("click", () => addCustomLabel());
+
+ids.forEach((id) => $(id).addEventListener("input", update));
+$("time-zone").addEventListener("input", () => updateTimeZoneHint(routeData));
+$("clip-mode").addEventListener("change", applyClip);
+["clip-distance-start", "clip-distance-end", "clip-time-start", "clip-time-end"]
+  .forEach((id) => $(id).addEventListener("change", applyClip));
+document.querySelectorAll('input[name="size-mode"]').forEach((input) => input.addEventListener("change", () => {
+  const px = input.value === "px";
+  $("px-fields").hidden = !px;
+  $("mm-fields").hidden = px;
+  update();
+}));
+
+$("download-svg").addEventListener("click", async () => {
+  const s = state();
+  try {
+    setStatus("高精細SVGを生成しています…");
+    const exportSvg = await generateSvg(routeData, s);
+    downloadBlob(new Blob([exportSvg], { type: "image/svg+xml;charset=utf-8" }), filename(s, "svg"));
+    setStatus("SVGを保存しました。");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+$("download-png").addEventListener("click", async () => {
+  const s = state();
+  try {
+    setStatus("高精細PNGを生成しています…");
+    const exportSvg = await generateSvg(routeData, s);
+    const blob = await svgToGrayscalePng(exportSvg, s.width, s.height, s.dpi, s.antialias);
+    downloadBlob(blob, filename(s, "png"));
+    setStatus("8bitグレースケールPNGを保存しました。");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+$("save-settings").addEventListener("click", () => {
+  const s = state();
+  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "ルート";
+  downloadBlob(new Blob([JSON.stringify(s, null, 2)], { type: "application/json" }), `${safeTitle}_設定.json`);
+});
+$("settings-file").addEventListener("change", async (event) => {
+  try {
+    const settings = JSON.parse(await event.target.files[0].text());
+    const map = {
+      sectionTitle: "section-title",
+      startName: "start-name", finishName: "finish-name", width: "width-px", height: "height-px",
+      widthMm: "width-mm", heightMm: "height-mm", dpi: "dpi", marginPercent: "margin-percent",
+      routeWidthMm: "route-width", profileWidthMm: "profile-width",
+      profileBoxWidth: "profile-box-width", profileBoxHeight: "profile-box-height",
+      profileOffsetX: "profile-offset-x", profileOffsetY: "profile-offset-y",
+      arrowSizeMm: "arrow-size",
+      infoScale: "info-scale", labelScale: "label-scale", markerScale: "marker-scale",
+      elevationScale: "elevation-scale",
+      routeScale: "route-scale",
+      routeOffsetX: "route-offset-x", routeOffsetY: "route-offset-y",
+      elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
+      showProfileElevation: "show-profile-elevation", showWaypoints: "show-waypoints",
+      showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
+      antialias: "antialias",
+      startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
+      labelPosition: "label-position", metaPosition: "meta-position", profilePosition: "profile-position",
+      clipMode: "clip-mode", clipDistanceStart: "clip-distance-start",
+      clipDistanceEnd: "clip-distance-end", clipTimeStart: "clip-time-start", clipTimeEnd: "clip-time-end"
+    };
+    Object.entries(map).forEach(([key, id]) => {
+      if (!(key in settings)) return;
+      if ($(id).type === "checkbox") $(id).checked = Boolean(settings[key]);
+      else $(id).value = settings[key];
+    });
+    if (!("startLabelPosition" in settings) && settings.labelPosition) {
+      $("start-label-position").value = settings.labelPosition;
+    }
+    if (!("finishLabelPosition" in settings) && settings.labelPosition) {
+      $("finish-label-position").value = settings.labelPosition;
+    }
+    setCustomLabels(settings.customLabels || []);
+    const mode = settings.sizeMode === "mm" ? "mm" : "px";
+    document.querySelector(`input[name="size-mode"][value="${mode}"]`).click();
+    if (sourceRouteData) applyClip();
+    else update();
+    setStatus("設定を読み込みました。");
+  } catch {
+    setStatus("設定JSONを読み込めません。", true);
+  }
+});
+$("fit-preview").addEventListener("click", () => $("preview").scrollIntoView({ behavior: "smooth", block: "center" }));
+
+update();
+if (new URLSearchParams(location.search).get("sample") === "1") loadSample();

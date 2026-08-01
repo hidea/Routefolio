@@ -1,0 +1,22 @@
+{
+  "name": "route-visualizer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GPXから書籍用のモノクロ区間経路図を生成するWebアプリ",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5005",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 5005",
+    "deploy": "npm run build && npx firebase-tools deploy --only hosting"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "canvg": "^4.0.3",
+    "tz-lookup": "^6.1.25"
+  },
+  "devDependencies": {
+    "vite": "^7.3.6"
+  }
+}
