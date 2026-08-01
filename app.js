@@ -4,10 +4,10 @@ import tzlookup from "tz-lookup";
 const $ = (id) => document.getElementById(id);
 const ids = [
   "section-title", "start-name", "finish-name",
-  "width-px", "height-px", "width-mm", "height-mm", "dpi", "margin-percent",
+  "width-px", "height-px", "width-mm", "height-mm", "dpi",
   "route-width", "profile-width", "profile-box-width", "profile-box-height",
-  "profile-offset-x", "profile-offset-y",
-  "arrow-size", "info-scale", "label-scale", "marker-scale", "elevation-scale",
+  "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
+  "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
   "route-scale", "route-offset-x", "route-offset-y",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-waypoints", "show-datetime",
   "show-map", "show-arrows", "antialias", "start-label-position", "finish-label-position",
@@ -28,27 +28,35 @@ const state = () => {
   const height = sizeMode === "px"
     ? clamp(Math.round(Number($("height-px").value)), 320, 12000)
     : clamp(Math.round(Number($("height-mm").value) / 25.4 * dpi), 320, 12000);
+  const marginMode = $("margin-link").getAttribute("aria-pressed") === "true" ? "all" : "individual";
+  const marginAllMm = clamp(Number($("margin-top").value), 0, 200);
   return {
     sizeMode, width, height, dpi,
     widthMm: width / dpi * 25.4, heightMm: height / dpi * 25.4,
     sectionTitle: $("section-title").value.trim() || "Route",
     startName: $("start-name").value.trim(),
     finishName: $("finish-name").value.trim(),
-    marginPercent: clamp(Number($("margin-percent").value), 3, 20),
+    marginMode, marginAllMm,
+    marginTopMm: clamp(Number($("margin-top").value), 0, 200),
+    marginRightMm: clamp(Number($("margin-right").value), 0, 200),
+    marginBottomMm: clamp(Number($("margin-bottom").value), 0, 200),
+    marginLeftMm: clamp(Number($("margin-left").value), 0, 200),
     routeWidthMm: clamp(Number($("route-width").value), .2, 1.5),
     profileWidthMm: clamp(Number($("profile-width").value), .1, 1.5),
     profileBoxWidth: clamp(Number($("profile-box-width").value), 20, 90),
     profileBoxHeight: clamp(Number($("profile-box-height").value), 10, 70),
-    profileOffsetX: clamp(Number($("profile-offset-x").value), -40, 40),
-    profileOffsetY: clamp(Number($("profile-offset-y").value), -40, 40),
+    profileOffsetXMm: clamp(Number($("profile-offset-x").value), -500, 500),
+    profileOffsetYMm: clamp(Number($("profile-offset-y").value), -500, 500),
+    infoOffsetXMm: clamp(Number($("info-offset-x").value), -500, 500),
+    infoOffsetYMm: clamp(Number($("info-offset-y").value), -500, 500),
     arrowSizeMm: clamp(Number($("arrow-size").value), .5, 10),
-    infoScale: clamp(Number($("info-scale").value), 50, 200),
-    labelScale: clamp(Number($("label-scale").value), 50, 200),
+    infoFontSizePt: clamp(Number($("info-font-size").value), 4, 144),
+    labelFontSizePt: clamp(Number($("label-font-size").value), 4, 144),
     markerScale: clamp(Number($("marker-scale").value), 10, 200),
-    elevationScale: clamp(Number($("elevation-scale").value), 50, 200),
+    elevationFontSizePt: clamp(Number($("elevation-font-size").value), 4, 144),
     routeScale: clamp(Number($("route-scale").value), 50, 300),
-    routeOffsetX: clamp(Number($("route-offset-x").value), -40, 40),
-    routeOffsetY: clamp(Number($("route-offset-y").value), -40, 40),
+    routeOffsetXMm: clamp(Number($("route-offset-x").value), -500, 500),
+    routeOffsetYMm: clamp(Number($("route-offset-y").value), -500, 500),
     elevationThreshold: clamp(Number($("elevation-threshold").value), 0, 50),
     timeZone: $("time-zone").value.trim() || "auto",
     showMap: $("show-map").checked,
@@ -595,11 +603,18 @@ function routeBounds(data) {
 
 async function generateSvg(data, s, renderData = data) {
   const { width: w, height: h } = s;
-  const margin = w * s.marginPercent / 100;
-  const routeTop = h * .12;
-  const routeBottom = h * .94;
-  const mapLeft = margin;
-  const mapRight = w - margin;
+  const pxPerMm = s.dpi / 25.4;
+  const ptToPx = s.dpi / 72;
+  const margin = {
+    top: s.marginTopMm * pxPerMm,
+    right: s.marginRightMm * pxPerMm,
+    bottom: s.marginBottomMm * pxPerMm,
+    left: s.marginLeftMm * pxPerMm
+  };
+  const routeTop = margin.top;
+  const routeBottom = h - margin.bottom;
+  const mapLeft = margin.left;
+  const mapRight = w - margin.right;
   const all = renderData.flat;
   const resolvedCustomLabels = s.customLabels
     .map((label) => ({ label, point: resolveCustomLabel(label, data, s.timeZone) }))
@@ -618,16 +633,17 @@ async function generateSvg(data, s, renderData = data) {
   const spanY = Math.max(maxY - minY, 1e-9);
   const scale = Math.min((mapRight - mapLeft) / spanX, (routeBottom - routeTop) / spanY)
     * .84 * s.routeScale / 100;
-  const offsetX = (mapLeft + mapRight) / 2 - (minX + maxX) / 2 * scale + w * s.routeOffsetX / 100;
-  const offsetY = (routeTop + routeBottom) / 2 - (minY + maxY) / 2 * scale + h * s.routeOffsetY / 100;
+  const offsetX = (mapLeft + mapRight) / 2 - (minX + maxX) / 2 * scale + s.routeOffsetXMm * pxPerMm;
+  const offsetY = (routeTop + routeBottom) / 2 - (minY + maxY) / 2 * scale + s.routeOffsetYMm * pxPerMm;
   const xy = (p) => {
     const q = mercator(p);
     return [q.px * scale + offsetX, q.py * scale + offsetY];
   };
   const sans = "Hiragino Sans, Yu Gothic, sans-serif";
-  const fs = Math.max(14, w * .024);
-  const infoFs = fs * s.infoScale / 100;
-  const small = Math.max(10, w * (8 / 750));
+  const infoFs = s.infoFontSizePt * ptToPx;
+  const labelFontSize = s.labelFontSizePt * ptToPx;
+  const profileFontSize = s.elevationFontSizePt * ptToPx;
+  const small = profileFontSize;
   const linePx = Math.max(1, 12.8 * (w / 2400) * (s.routeWidthMm / .5));
   const ascentM = routeAscent(data, s.elevationThreshold);
 
@@ -648,25 +664,23 @@ async function generateSvg(data, s, renderData = data) {
   const [startX, startY] = xy(first);
   const [finishX, finishY] = xy(last);
   const labels = [];
-  const labelScale = s.labelScale / 100;
   const markerScale = s.markerScale / 100;
-  const endpointFontSize = fs * .66 * labelScale;
+  const endpointFontSize = labelFontSize;
   if (s.startName) labels.push(pointLabel(startX, startY, s.startName, first.ele, s.startLabelPosition, w, h, endpointFontSize, small));
   if (s.finishName) labels.push(pointLabel(finishX, finishY, s.finishName, last.ele, s.finishLabelPosition, w, h, endpointFontSize, small));
 
   const waypointSvg = s.showWaypoints ? data.waypoints.map((point) => {
     const [x, y] = xy(point);
     return `<circle cx="${x}" cy="${y}" r="${Math.max(4, h * .004) * markerScale}" fill="#111"/>
-      ${pointLabel(x, y, point.name, point.ele, s.labelPosition, w, h, fs * .75 * labelScale, small * .8)}`;
+      ${pointLabel(x, y, point.name, point.ele, s.labelPosition, w, h, labelFontSize, small * .8)}`;
   }).join("") : "";
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
     const [x, y] = xy(point);
     const markerSize = Math.max(5, h * .005) * markerScale;
     return `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>
-      ${pointLabel(x, y, label.name, null, label.position, w, h, fs * .66 * labelScale, small)}`;
+      ${pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, small)}`;
   }).join("");
 
-  const profileFontSize = small * s.elevationScale / 100;
   const profileBox = positionedBox(
     s.profilePosition,
     w,
@@ -676,15 +690,15 @@ async function generateSvg(data, s, renderData = data) {
     h * s.profileBoxHeight / 100,
     h * .15
   );
-  const profileOffsetX = w * s.profileOffsetX / 100;
-  const profileOffsetY = h * s.profileOffsetY / 100;
+  const profileOffsetX = s.profileOffsetXMm * pxPerMm;
+  const profileOffsetY = s.profileOffsetYMm * pxPerMm;
   let profileLeft = profileBox.left + profileOffsetX;
   let profileRight = profileBox.right + profileOffsetX;
   const profileTop = profileBox.top + profileOffsetY;
   const profileBottom = profileBox.bottom + profileOffsetY;
   const requiredLeftGutter = profileFontSize * 4.2;
   if (s.profilePosition.endsWith("left")) {
-    const availableShift = Math.max(0, w - margin - profileRight);
+    const availableShift = Math.max(0, w - margin.right - profileRight);
     const shift = Math.min(requiredLeftGutter, availableShift);
     profileLeft += shift;
     profileRight += shift;
@@ -711,7 +725,7 @@ async function generateSvg(data, s, renderData = data) {
   const scaleSide = s.showProfile && s.profilePosition.endsWith("left") ? "right" : "left";
   const scaleBar = s.showMap ? scaleBarSvg(w, h, margin, scale, centerLat, small, scaleSide) : "";
   const attributionOnLeft = scaleSide === "right";
-  const attributionX = attributionOnLeft ? margin : w - margin;
+  const attributionX = attributionOnLeft ? margin.left : w - margin.right;
   const attributionAnchor = attributionOnLeft ? "start" : "end";
   const dateLines = [];
   const startTimeZone = resolveTimeZone(s.timeZone, data.flat[0]);
@@ -724,6 +738,9 @@ async function generateSvg(data, s, renderData = data) {
     dateLines.push(`Finish ${formatGpxTime(data.endTime, endTimeZone)}`);
   }
   const info = infoBlockPosition(s.metaPosition, w, h, margin, infoFs, 1 + dateLines.length);
+  info.x += s.infoOffsetXMm * pxPerMm;
+  info.titleY += s.infoOffsetYMm * pxPerMm;
+  info.metaY += s.infoOffsetYMm * pxPerMm;
   const distanceValue = (data.totalDistance / 1000).toFixed(1);
   const metricText = `<text x="${info.x}" y="${info.metaY}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .18}">
     Distance <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `  Elevation gain <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
@@ -761,7 +778,7 @@ async function generateSvg(data, s, renderData = data) {
     ${customLabelSvg}
     ${profile}
     ${scaleBar}
-    <text x="${attributionX}" y="${h - margin * .48}" text-anchor="${attributionAnchor}" font-size="${small * .68}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${small * .2}">${esc(background.attribution)}</text>
+    <text x="${attributionX}" y="${h - margin.bottom * .48}" text-anchor="${attributionAnchor}" font-size="${small * .68}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${small * .2}">${esc(background.attribution)}</text>
   </g>
 </svg>`;
 }
@@ -775,8 +792,8 @@ function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left")
   const factor = normalized >= 5 ? 5 : normalized >= 2 ? 2 : 1;
   const distanceMeters = factor * magnitude;
   const length = distanceMeters / metersPerPixel;
-  const x = side === "right" ? w - margin - length : margin;
-  const y = h - margin * .48;
+  const x = side === "right" ? w - margin.right - length : margin.left;
+  const y = h - margin.bottom * .48;
   const segment = length / 2;
   const label = distanceMeters >= 1000
     ? `${Number((distanceMeters / 1000).toPrecision(3))} km`
@@ -805,14 +822,14 @@ function infoBlockPosition(position, w, h, margin, fs, lineCount) {
   const right = position.endsWith("right");
   const top = position.startsWith("top");
   const bottom = position.startsWith("bottom");
-  const bottomMetaY = h - margin * .55 - (lineCount - 1) * fs * .78;
+  const bottomMetaY = h - margin.bottom * .55 - (lineCount - 1) * fs * .78;
   const centerBlockHeight = fs * (2.12 + (lineCount - 1) * .78);
   const centerTitleY = (h - centerBlockHeight) / 2 + fs;
   const titleY = top
-    ? margin + fs * .8
+    ? margin.top + fs * .8
     : bottom ? bottomMetaY - fs * 1.12 : centerTitleY;
   return {
-    x: left ? margin : right ? w - margin : w / 2,
+    x: left ? margin.left : right ? w - margin.right : w / 2,
     titleY,
     metaY: titleY + fs * 1.12,
     anchor: left ? "start" : right ? "end" : "middle"
@@ -870,8 +887,8 @@ function positionedBox(position, w, h, margin, boxW, boxH, topInset) {
   const rightSide = position.endsWith("right");
   const topSide = position.startsWith("top");
   const bottomSide = position.startsWith("bottom");
-  const left = leftSide ? margin : rightSide ? w - margin - boxW : (w - boxW) / 2;
-  const top = topSide ? topInset : bottomSide ? h - margin - boxH : (h - boxH) / 2;
+  const left = leftSide ? margin.left : rightSide ? w - margin.right - boxW : (w - boxW) / 2;
+  const top = topSide ? Math.max(topInset, margin.top) : bottomSide ? h - margin.bottom - boxH : (h - boxH) / 2;
   return { left, right: left + boxW, top, bottom: top + boxH };
 }
 
@@ -1329,6 +1346,42 @@ function crc32(bytes) {
 }
 
 $("gpx-file").addEventListener("change", (event) => loadGpxFiles(event.target.files));
+const gpxDropZone = $("gpx-drop-zone");
+const gpxDropLabel = $("gpx-drop-label");
+const defaultGpxDropLabel = gpxDropLabel.textContent;
+let gpxDragDepth = 0;
+
+function setGpxDragover(active) {
+  gpxDropZone.classList.toggle("is-dragover", active);
+  gpxDropLabel.textContent = active ? "Drop GPX file(s) here" : defaultGpxDropLabel;
+}
+
+gpxDropZone.addEventListener("dragenter", (event) => {
+  event.preventDefault();
+  gpxDragDepth += 1;
+  setGpxDragover(true);
+});
+gpxDropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+});
+gpxDropZone.addEventListener("dragleave", () => {
+  gpxDragDepth = Math.max(0, gpxDragDepth - 1);
+  if (!gpxDragDepth) setGpxDragover(false);
+});
+gpxDropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  gpxDragDepth = 0;
+  setGpxDragover(false);
+  const files = [...event.dataTransfer.files];
+  if (!files.length) return;
+  const gpxFiles = files.filter((file) => file.name.toLowerCase().endsWith(".gpx"));
+  if (gpxFiles.length !== files.length) {
+    setStatus("Only .gpx files can be dropped here.", true);
+    return;
+  }
+  loadGpxFiles(gpxFiles);
+});
 async function loadSample() {
   try {
     const response = await fetch("sample.gpx");
@@ -1343,6 +1396,26 @@ $("load-sample").addEventListener("click", loadSample);
 $("add-custom-label").addEventListener("click", () => addCustomLabel());
 
 ids.forEach((id) => $(id).addEventListener("input", update));
+const marginFieldIds = ["margin-top", "margin-right", "margin-bottom", "margin-left"];
+function setMarginLinked(linked, syncValue = false) {
+  $("margin-link").setAttribute("aria-pressed", String(linked));
+  $("margin-link").title = linked ? "Unlink margin values" : "Link margin values";
+  if (linked && syncValue) {
+    const value = $("margin-top").value;
+    marginFieldIds.forEach((id) => { $(id).value = value; });
+  }
+}
+$("margin-link").addEventListener("click", () => {
+  const linked = $("margin-link").getAttribute("aria-pressed") !== "true";
+  setMarginLinked(linked, true);
+  update();
+});
+marginFieldIds.forEach((id) => $(id).addEventListener("input", (event) => {
+  if ($("margin-link").getAttribute("aria-pressed") === "true") {
+    marginFieldIds.forEach((otherId) => { if (otherId !== id) $(otherId).value = event.target.value; });
+  }
+  update();
+}));
 $("time-zone").addEventListener("input", () => updateTimeZoneHint(routeData));
 $("clip-mode").addEventListener("change", applyClip);
 ["clip-distance-start", "clip-distance-end", "clip-time-start", "clip-time-end"]
@@ -1388,15 +1461,18 @@ $("settings-file").addEventListener("change", async (event) => {
     const map = {
       sectionTitle: "section-title",
       startName: "start-name", finishName: "finish-name", width: "width-px", height: "height-px",
-      widthMm: "width-mm", heightMm: "height-mm", dpi: "dpi", marginPercent: "margin-percent",
+      widthMm: "width-mm", heightMm: "height-mm", dpi: "dpi",
+      marginTopMm: "margin-top", marginRightMm: "margin-right",
+      marginBottomMm: "margin-bottom", marginLeftMm: "margin-left",
       routeWidthMm: "route-width", profileWidthMm: "profile-width",
       profileBoxWidth: "profile-box-width", profileBoxHeight: "profile-box-height",
-      profileOffsetX: "profile-offset-x", profileOffsetY: "profile-offset-y",
+      profileOffsetXMm: "profile-offset-x", profileOffsetYMm: "profile-offset-y",
+      infoOffsetXMm: "info-offset-x", infoOffsetYMm: "info-offset-y",
       arrowSizeMm: "arrow-size",
-      infoScale: "info-scale", labelScale: "label-scale", markerScale: "marker-scale",
-      elevationScale: "elevation-scale",
+      infoFontSizePt: "info-font-size", labelFontSizePt: "label-font-size", markerScale: "marker-scale",
+      elevationFontSizePt: "elevation-font-size",
       routeScale: "route-scale",
-      routeOffsetX: "route-offset-x", routeOffsetY: "route-offset-y",
+      routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
       showProfileElevation: "show-profile-elevation", showWaypoints: "show-waypoints",
       showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
@@ -1411,6 +1487,25 @@ $("settings-file").addEventListener("change", async (event) => {
       if ($(id).type === "checkbox") $(id).checked = Boolean(settings[key]);
       else $(id).value = settings[key];
     });
+    if (!("marginTopMm" in settings) && Number.isFinite(settings.marginAllMm)) {
+      marginFieldIds.forEach((id) => { $(id).value = settings.marginAllMm; });
+    }
+    const legacyWidthMm = Number(settings.widthMm) || Number(settings.width) / (Number(settings.dpi) || 300) * 25.4;
+    const legacyHeightMm = Number(settings.heightMm) || Number(settings.height) / (Number(settings.dpi) || 300) * 25.4;
+    if (!("marginTopMm" in settings) && Number.isFinite(settings.marginPercent)) {
+      const legacyMarginMm = legacyWidthMm * Number(settings.marginPercent) / 100;
+      ["margin-top", "margin-right", "margin-bottom", "margin-left"].forEach((id) => { $(id).value = legacyMarginMm.toFixed(2); });
+    }
+    if (!("routeOffsetXMm" in settings) && Number.isFinite(settings.routeOffsetX)) $("route-offset-x").value = legacyWidthMm * settings.routeOffsetX / 100;
+    if (!("routeOffsetYMm" in settings) && Number.isFinite(settings.routeOffsetY)) $("route-offset-y").value = legacyHeightMm * settings.routeOffsetY / 100;
+    if (!("profileOffsetXMm" in settings) && Number.isFinite(settings.profileOffsetX)) $("profile-offset-x").value = legacyWidthMm * settings.profileOffsetX / 100;
+    if (!("profileOffsetYMm" in settings) && Number.isFinite(settings.profileOffsetY)) $("profile-offset-y").value = legacyHeightMm * settings.profileOffsetY / 100;
+    const legacyDpi = Number(settings.dpi) || 300;
+    const legacyWidthPx = Number(settings.width) || legacyWidthMm / 25.4 * legacyDpi;
+    const legacyBaseFontPx = Math.max(14, legacyWidthPx * .024);
+    if (!("infoFontSizePt" in settings) && Number.isFinite(settings.infoScale)) $("info-font-size").value = (legacyBaseFontPx * settings.infoScale / 100 / legacyDpi * 72).toFixed(1);
+    if (!("labelFontSizePt" in settings) && Number.isFinite(settings.labelScale)) $("label-font-size").value = (legacyBaseFontPx * .66 * settings.labelScale / 100 / legacyDpi * 72).toFixed(1);
+    if (!("elevationFontSizePt" in settings) && Number.isFinite(settings.elevationScale)) $("elevation-font-size").value = (Math.max(10, legacyWidthPx * (8 / 750)) * settings.elevationScale / 100 / legacyDpi * 72).toFixed(1);
     if (!("startLabelPosition" in settings) && settings.labelPosition) {
       $("start-label-position").value = settings.labelPosition;
     }
@@ -1418,6 +1513,8 @@ $("settings-file").addEventListener("change", async (event) => {
       $("finish-label-position").value = settings.labelPosition;
     }
     setCustomLabels(settings.customLabels || []);
+    const marginMode = settings.marginMode === "individual" ? "individual" : "all";
+    setMarginLinked(marginMode === "all", false);
     const mode = settings.sizeMode === "mm" ? "mm" : "px";
     document.querySelector(`input[name="size-mode"][value="${mode}"]`).click();
     if (sourceRouteData) applyClip();
