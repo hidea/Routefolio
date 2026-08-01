@@ -1,4 +1,4 @@
-# Route Visualizer Requirements
+# Routefolio Requirements
 
 ## 1. Purpose
 
@@ -6,7 +6,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 
 ## 2. Basis for this requirement set
 
-- The app name is `Route Visualizer`
+- The app name is `Routefolio`
 - Publishable to static hosting such as Firebase Hosting
 
 ## 3. Expected usage flow

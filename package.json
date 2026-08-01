@@ -1,5 +1,5 @@
 {
-  "name": "route-visualizer",
+  "name": "routefolio",
   "version": "1.0.0",
   "private": true,
   "description": "Web app that generates a monochrome section route diagram for print from a GPX file",

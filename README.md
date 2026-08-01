@@ -1,4 +1,4 @@
-# Route Visualizer
+# Routefolio
 
 A web app that generates a monochrome route image from a GPX file, complete with a bold route line, direction of travel, place annotations, background map, and elevation profile.
 

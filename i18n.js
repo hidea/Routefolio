@@ -102,7 +102,7 @@ const ja = {
   "Background map:": "背景地図：",
   "Project links": "プロジェクトリンク",
   "hidea on Bluesky": "hideaのBlueskyプロフィール",
-  "RouteVisualizer on GitHub": "GitHubのRouteVisualizerリポジトリ",
+  "Routefolio on GitHub": "GitHubのRoutefolioリポジトリ",
   "Live preview": "ライブプレビュー",
   "Output figure": "出力図",
   "Once you load a GPX file, the figure will appear here.": "GPXファイルを読み込むと、ここに図が表示されます。",
