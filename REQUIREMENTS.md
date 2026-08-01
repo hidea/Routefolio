@@ -65,6 +65,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - The elevation profile can be offset horizontally and vertically in millimeters.
 - Output margins can be specified in millimeters, either as one value for all sides or separately for top/right/bottom/left.
 - The background map, elevation profile, and waypoints can each be toggled on or off.
+- The live preview display scale can be adjusted from 1% to 300% without changing exported image dimensions, and can be fit within the preview area in both dimensions.
 - Fetch a background map around the route from a public map service.
 - If the route is within Japan, use the Geospatial Information Authority of Japan (GSI) map as the background.
 - If the route is outside Japan, use OpenStreetMap as the background.

@@ -71,6 +71,7 @@ const state = () => {
     showWaypoints: $("show-waypoints").checked,
     showDatetime: $("show-datetime").checked,
     antialias: $("antialias").checked,
+    previewScale: clamp(Number($("preview-scale").value), 1, 300),
     clipMode: $("clip-mode").value,
     clipDistanceStart: $("clip-distance-start").value,
     clipDistanceEnd: $("clip-distance-end").value,
@@ -1476,7 +1477,7 @@ $("settings-file").addEventListener("change", async (event) => {
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
       showProfileElevation: "show-profile-elevation", showWaypoints: "show-waypoints",
       showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
-      antialias: "antialias",
+      antialias: "antialias", previewScale: "preview-scale",
       startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
       labelPosition: "label-position", metaPosition: "meta-position", profilePosition: "profile-position",
       clipMode: "clip-mode", clipDistanceStart: "clip-distance-start",
@@ -1515,6 +1516,7 @@ $("settings-file").addEventListener("change", async (event) => {
     setCustomLabels(settings.customLabels || []);
     const marginMode = settings.marginMode === "individual" ? "individual" : "all";
     setMarginLinked(marginMode === "all", false);
+    applyPreviewScale();
     const mode = settings.sizeMode === "mm" ? "mm" : "px";
     document.querySelector(`input[name="size-mode"][value="${mode}"]`).click();
     if (sourceRouteData) applyClip();
@@ -1524,7 +1526,30 @@ $("settings-file").addEventListener("change", async (event) => {
     setStatus("Unable to load settings JSON.", true);
   }
 });
-$("fit-preview").addEventListener("click", () => $("preview").scrollIntoView({ behavior: "smooth", block: "center" }));
+function applyPreviewScale() {
+  const scale = clamp(Number($("preview-scale").value), 1, 300);
+  $("preview").style.setProperty("--preview-scale", `${scale}%`);
+}
+function fitPreview() {
+  const shell = $("preview-shell");
+  const shellStyle = getComputedStyle(shell);
+  const availableWidth = shell.clientWidth
+    - parseFloat(shellStyle.paddingLeft) - parseFloat(shellStyle.paddingRight);
+  const availableHeight = shell.clientHeight
+    - parseFloat(shellStyle.paddingTop) - parseFloat(shellStyle.paddingBottom);
+  const s = state();
+  const heightAtFullWidth = availableWidth * s.height / s.width;
+  const scale = heightAtFullWidth > 0
+    ? clamp(Math.min(100, availableHeight / heightAtFullWidth * 100), 1, 100)
+    : 100;
+  $("preview-scale").value = Number(scale.toFixed(1));
+  applyPreviewScale();
+}
+$("preview-scale").addEventListener("input", applyPreviewScale);
+$("fit-preview").addEventListener("click", () => {
+  fitPreview();
+});
 
+applyPreviewScale();
 update();
 if (new URLSearchParams(location.search).get("sample") === "1") loadSample();

@@ -115,9 +115,10 @@
   @apply px-[5px] text-[.73rem] font-semibold tracking-[.05em] text-ink;
 }
 .margin-control legend span { @apply font-normal tracking-normal text-muted; }
+.margin-values-row { @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5; }
 .line-settings-grid { @apply mt-4; }
 .margin-link-button {
-  @apply absolute top-2 right-[9px] grid size-[30px] min-h-0 place-items-center rounded-sm border border-[#aaa79d] bg-white p-0 text-muted;
+  @apply grid size-[30px] min-h-0 place-items-center rounded-sm border border-[#aaa79d] bg-white p-0 text-muted;
 }
 .margin-link-button svg { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .margin-link-button[aria-pressed="true"] {
@@ -149,14 +150,19 @@
 .map-credits a { @apply text-inherit underline-offset-2; }
 
 .preview-region {
-  @apply sticky top-0 h-screen min-w-0 self-start overflow-auto bg-panel px-[clamp(18px,4vw,64px)] pt-7 pb-[50px];
+  @apply sticky top-0 grid h-dvh min-w-0 grid-rows-[auto_minmax(0,1fr)_auto] self-start overflow-hidden bg-panel px-[clamp(18px,4vw,64px)] pt-7 pb-[50px];
 }
 .preview-toolbar { @apply mb-[18px] flex items-end justify-between; }
 .preview-toolbar h2 { @apply mt-0.5 mb-0 font-mincho text-[1.2rem] leading-[1.3] font-medium; }
+.preview-footer-actions { @apply mt-3 flex flex-wrap items-center justify-start gap-5; }
+.preview-scale-control { @apply flex items-center gap-2; }
+.preview-scale-control > span { @apply flex items-center gap-1 text-[.76rem] text-muted; }
+#preview-scale { inline-size: 4rem !important; @apply h-8! px-2! py-1! text-right tabular-nums; }
 .preview-shell {
-  @apply grid min-h-[65vh] place-items-center overflow-auto bg-[#dddcd6] p-[clamp(12px,3vw,38px)];
+  @apply grid min-h-0 place-items-center overflow-auto bg-[#dddcd6] p-[clamp(12px,3vw,38px)];
+  place-items: safe center;
 }
-#preview { @apply w-full leading-none shadow-[0_2px_14px_rgb(0_0_0_/_0.1)]; }
+#preview { width: var(--preview-scale, 100%); @apply max-w-none leading-none shadow-[0_2px_14px_rgb(0_0_0_/_0.1)]; }
 #preview svg { @apply block h-auto w-full bg-white; }
 .empty-preview { @apply text-center font-mincho text-[.9rem] leading-[1.6] text-[#77756e]; }
 .empty-preview span { @apply block font-serif text-5xl; }
@@ -165,7 +171,8 @@
   .controls {
     @apply static h-auto overflow-visible border-r-0 border-b border-line;
   }
-  .preview-region { @apply static h-auto min-h-[70vh] overflow-visible; }
+  .preview-region { @apply static block h-auto min-h-[70vh] overflow-visible; }
+  .preview-shell { @apply h-[65dvh] min-h-0; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
