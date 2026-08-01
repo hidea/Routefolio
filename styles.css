@@ -47,6 +47,8 @@
 .sidebar-brand h1 {
   @apply m-0 font-mincho text-[1.15rem] leading-[1.25] font-medium;
 }
+.brand-title { @apply flex items-center justify-start gap-2; }
+.brand-title img { @apply size-6 shrink-0 object-contain; }
 .sidebar-brand p {
   @apply mt-1.5 mb-0 text-[.69rem] leading-[1.45] text-muted;
 }
