@@ -18,12 +18,12 @@
   [hidden] { display: none !important; }
   body { @apply m-0 bg-paper font-sans text-ink; }
   button, input, select { font: inherit; }
-  button, .button { @apply min-h-[42px]; }
+  button, .button { @apply min-h-[38px]; }
   button { @apply cursor-pointer; }
   button:disabled { @apply cursor-not-allowed opacity-40; }
   label { @apply grid gap-1.5 text-[.76rem] leading-[1.35] text-[#5c5a54]; }
   input:not([type="radio"]):not([type="checkbox"]):not([type="file"]), select {
-    @apply h-[42px] w-full rounded-sm border border-[#aaa79d] bg-control px-2.5 py-2 text-ink;
+    @apply h-[38px] w-full rounded-sm border border-[#aaa79d] bg-control px-2 py-1.5 text-ink;
   }
   input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):hover, select:hover {
     @apply border-[#77746b];
@@ -37,12 +37,12 @@
 
 .workspace { @apply grid min-h-dvh grid-cols-[minmax(310px,390px)_1fr] max-[850px]:grid-cols-1; }
 .controls {
-  @apply sticky top-0 h-dvh self-start overflow-auto border-r border-line bg-white px-[18px] pt-3 pb-10;
+  @apply sticky top-0 h-dvh self-start overflow-auto border-r border-line bg-white px-2.5 pt-1.5 pb-5;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
 }
 .sidebar-brand {
-  @apply mb-2 border-b border-line px-1 pt-3 pb-[18px];
+  @apply mb-1 border-b border-line px-0.5 pt-1.5 pb-3;
 }
 .sidebar-brand h1 {
   @apply m-0 font-mincho text-[1.15rem] leading-[1.25] font-medium;
@@ -50,7 +50,7 @@
 .sidebar-brand p {
   @apply mt-1.5 mb-0 text-[.69rem] leading-[1.45] text-muted;
 }
-.sidebar-footer { @apply mt-3 border-t border-line pt-3; }
+.sidebar-footer { @apply mt-2.5 border-t border-line pt-2.5; }
 .social-links { @apply flex gap-1; }
 .social-links a {
   @apply grid size-[30px] place-items-center rounded-full text-muted hover:bg-[#ece9df] hover:text-ink;
@@ -60,15 +60,15 @@
 .copyright { @apply mt-2 mb-0 text-[.62rem] leading-[1.5] text-muted; }
 .controls section, .controls > details { @apply p-0; }
 .controls h2 { @apply mt-0 mb-3.5 text-[.78rem] font-semibold tracking-[.12em]; }
-.field-grid { @apply grid grid-cols-2 gap-3 max-[420px]:grid-cols-1; }
+.field-grid { @apply grid grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
 .field-grid .wide { @apply col-span-full; }
-.custom-labels-heading { @apply mt-5 flex items-center justify-between; }
+.custom-labels-heading { @apply mt-3 flex items-center justify-between; }
 .custom-labels-heading h3 { @apply m-0 text-[.76rem] tracking-[.08em]; }
-.add-label-button { @apply mt-3; }
-.custom-label-row { @apply mt-3 grid gap-2.5 border-t border-line py-3; }
+.add-label-button { @apply mt-2; }
+.custom-label-row { @apply mt-2 grid gap-2 border-t border-line py-2; }
 .custom-label-row .remove-label { @apply min-h-0 justify-self-end border-0 border-b border-current bg-transparent px-0 py-1 text-[.72rem] text-[#7b2820]; }
 .file-drop {
-  @apply min-h-[82px] cursor-pointer place-content-center rounded-sm border border-dashed border-[#8c897f] bg-control p-3.5 text-center text-ink;
+  @apply min-h-[68px] cursor-pointer place-content-center rounded-sm border border-dashed border-[#8c897f] bg-control p-2.5 text-center text-ink;
 }
 .file-drop:hover { @apply border-solid bg-[#f5f3ec]; }
 .file-drop.is-dragover {
@@ -77,22 +77,23 @@
 .file-drop.is-dragover #gpx-drop-label { @apply font-bold; }
 .file-drop small { @apply text-muted; overflow-wrap: anywhere; }
 .file-drop input, .upload-button input { @apply absolute size-px opacity-0; }
-.text-button { @apply min-h-0 border-0 border-b border-current bg-transparent px-0 py-2 text-ink; }
-.mode-picker { @apply mb-3.5 flex gap-[18px] border-0 p-0; }
-.mode-picker legend { @apply mb-2 text-[.76rem] text-muted; }
-.clip-controls { @apply mt-3.5 grid gap-3 border-0 border-t border-line px-0 pt-3.5; }
-.clip-controls legend { @apply pt-3.5 text-[.76rem] font-semibold text-ink; }
+.text-button { @apply min-h-0 border-0 border-b border-current bg-transparent px-0 py-1.5 text-ink; }
+#load-sample { @apply ms-auto block w-fit py-1 text-[.68rem] text-muted; }
+.mode-picker { @apply mb-2.5 flex gap-3.5 border-0 p-0; }
+.mode-picker legend { @apply mb-1.5 text-[.76rem] text-muted; }
+.clip-controls { @apply mt-2.5 grid gap-2 border-0 border-t border-line px-0 pt-2.5; }
+.clip-controls legend { @apply pt-2.5 text-[.76rem] font-semibold text-ink; }
 .mode-picker label, .check { @apply flex items-center gap-[7px]; }
 .mode-picker input, .check input { @apply accent-active; }
 .size-summary { @apply mt-2.5 block text-[.73rem] leading-normal text-muted; }
 .settings-group {
-  @apply my-2 overflow-clip rounded-md border border-line bg-white;
+  @apply my-1 overflow-clip rounded-md border border-line bg-white;
 }
 .settings-group[open] {
   @apply border-[#b8b5ab] shadow-[0_2px_8px_rgb(36_34_28_/_0.05)];
 }
 .settings-group > summary {
-  @apply grid min-h-[54px] cursor-pointer list-none grid-cols-[28px_1fr_auto] items-center gap-2 px-3.5 text-[.8rem] font-semibold tracking-[.08em];
+  @apply grid min-h-[46px] cursor-pointer list-none grid-cols-[26px_1fr_auto] items-center gap-2 px-2.5 text-[.8rem] font-semibold tracking-[.08em];
 }
 .settings-group > summary:hover { @apply bg-[#f7f6f1]; }
 .settings-group[open] > summary { @apply border-b border-line bg-[#f7f6f1]; }
@@ -104,27 +105,27 @@
 }
 .settings-group[open] > summary::after { transform: rotate(225deg) translate(-2px, -2px); }
 .step-number {
-  @apply grid size-[26px] place-items-center rounded-full bg-ink text-[.65rem] tracking-[.04em] text-white;
+  @apply grid size-6 place-items-center rounded-full bg-ink text-[.62rem] tracking-[.04em] text-white;
 }
-.settings-body { @apply px-3.5 pt-[18px] pb-5; }
+.settings-body { @apply px-2.5 pt-3 pb-3.5; }
 .settings-subgroup {
   @apply m-0 min-w-0 border-0 p-0;
 }
 .settings-subgroup + .settings-subgroup {
-  @apply mt-5 border-t border-line pt-[18px];
+  @apply mt-3.5 border-t border-line pt-3;
 }
 .settings-subgroup > legend {
-  @apply mb-[11px] p-0 text-[.73rem] font-semibold tracking-[.08em] text-ink;
+  @apply mb-2 p-0 text-[.73rem] font-semibold tracking-[.08em] text-ink;
 }
 .margin-control {
-  @apply relative m-0 min-w-0 rounded-sm border border-[#d2cfc5] bg-[#f7f6f1] px-3 pt-3.5 pb-3;
+  @apply relative m-0 min-w-0 rounded-sm border border-[#d2cfc5] bg-[#f7f6f1] px-2 pt-2.5 pb-2;
 }
 .margin-control legend {
   @apply px-[5px] text-[.73rem] font-semibold tracking-[.05em] text-ink;
 }
 .margin-control legend span { @apply font-normal tracking-normal text-muted; }
 .margin-values-row { @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2.5; }
-.line-settings-grid { @apply mt-4; }
+.line-settings-grid { @apply mt-2.5; }
 .margin-link-button {
   @apply grid size-[30px] min-h-0 place-items-center rounded-sm border border-[#aaa79d] bg-white p-0 text-muted;
 }
@@ -136,7 +137,7 @@
 .margin-link-button:hover { @apply bg-[#ece9df]; }
 .check + .check { @apply mt-2.5; }
 .visibility-options {
-  @apply grid grid-cols-2 gap-x-3 gap-y-2.5 max-[420px]:grid-cols-1;
+  @apply grid grid-cols-2 gap-2 max-[420px]:grid-cols-1;
 }
 .visibility-options legend { @apply col-span-full; }
 .visibility-options .check {
@@ -144,11 +145,11 @@
 }
 .visibility-options .check + .check { @apply mt-0; }
 .actions {
-  @apply mt-3 rounded-md border border-line bg-[#f7f6f1] p-5!;
+  @apply mt-2 rounded-md border border-line bg-[#f7f6f1] p-3!;
 }
-.button-row { @apply mt-3 grid grid-cols-2 gap-3; }
+.button-row { @apply mt-2 grid grid-cols-2 gap-2; }
 .button-row button, .upload-button {
-  @apply grid min-h-11 place-items-center rounded-none border border-ink bg-ink px-3 py-2.5 text-[.76rem] text-white;
+  @apply grid min-h-10 place-items-center rounded-none border border-ink bg-ink px-2.5 py-2 text-[.76rem] text-white;
 }
 .button-row .secondary { @apply bg-white text-ink; }
 .upload-button { @apply cursor-pointer; }
