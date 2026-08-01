@@ -729,11 +729,11 @@ async function generateSvg(data, s, renderData = data) {
   const startTimeZone = resolveTimeZone(s.timeZone, data.flat[0]);
   const endTimeZone = resolveTimeZone(s.timeZone, data.flat.at(-1));
   if (s.showDatetime && data.startTime && data.endTime) {
-    dateLines.push(`Start ${formatGpxTime(data.startTime, startTimeZone)}  Finish ${formatGpxTime(data.endTime, endTimeZone)}`);
+    dateLines.push(`${t("Start")} ${formatGpxTime(data.startTime, startTimeZone)}  ${t("Finish")} ${formatGpxTime(data.endTime, endTimeZone)}`);
   } else if (s.showDatetime && data.startTime) {
-    dateLines.push(`Start ${formatGpxTime(data.startTime, startTimeZone)}`);
+    dateLines.push(`${t("Start")} ${formatGpxTime(data.startTime, startTimeZone)}`);
   } else if (s.showDatetime && data.endTime) {
-    dateLines.push(`Finish ${formatGpxTime(data.endTime, endTimeZone)}`);
+    dateLines.push(`${t("Finish")} ${formatGpxTime(data.endTime, endTimeZone)}`);
   }
   const info = infoBlockPosition(s.metaPosition, w, h, margin, infoFs, 1 + dateLines.length);
   info.x += s.infoOffsetXMm * pxPerMm;
@@ -741,7 +741,7 @@ async function generateSvg(data, s, renderData = data) {
   info.metaY += s.infoOffsetYMm * pxPerMm;
   const distanceValue = (data.totalDistance / 1000).toFixed(1);
   const metricText = `<text x="${info.x}" y="${info.metaY}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .18}">
-    Distance <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `  Elevation gain <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
+    ${esc(t("Distance"))} <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `  ${esc(t("Elevation gain"))} <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
   </text>`;
   const dateTexts = dateLines.map((line, index) =>
     `<text x="${info.x}" y="${info.metaY + (index + 1) * infoFs * .78}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .16}">${esc(line)}</text>`
@@ -933,7 +933,7 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
     }
   }));
   const loaded = rendered.filter(Boolean);
-  const attribution = source === "gsi" ? "Source: GSI Tiles (Geospatial Information Authority of Japan)" : "© OpenStreetMap contributors";
+  const attribution = source === "gsi" ? t("Source: GSI Tiles (Geospatial Information Authority of Japan)") : "© OpenStreetMap contributors";
   if (!loaded.length) {
     return {
       svg: "",
