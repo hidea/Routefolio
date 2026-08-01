@@ -1455,6 +1455,67 @@ $("save-settings").addEventListener("click", () => {
   const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "Route";
   downloadBlob(new Blob([JSON.stringify(s, null, 2)], { type: "application/json" }), `${safeTitle}_settings.json`);
 });
+const layoutSettingKeys = [
+  "sizeMode", "width", "height", "widthMm", "heightMm", "dpi",
+  "marginMode", "marginAllMm", "marginTopMm", "marginRightMm", "marginBottomMm", "marginLeftMm",
+  "routeWidthMm", "profileWidthMm", "profileBoxWidthMm", "profileBoxHeightMm",
+  "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
+  "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
+  "routeScale", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
+  "showProfile", "showProfileElevation", "showWaypoints", "showMap", "showArrows", "showDatetime",
+  "antialias", "metaPosition", "profilePosition", "previewScale"
+];
+const layoutControlMap = {
+  width: "width-px", height: "height-px", widthMm: "width-mm", heightMm: "height-mm", dpi: "dpi",
+  marginTopMm: "margin-top", marginRightMm: "margin-right",
+  marginBottomMm: "margin-bottom", marginLeftMm: "margin-left",
+  routeWidthMm: "route-width", profileWidthMm: "profile-width",
+  profileBoxWidthMm: "profile-box-width", profileBoxHeightMm: "profile-box-height",
+  profileOffsetXMm: "profile-offset-x", profileOffsetYMm: "profile-offset-y",
+  infoOffsetXMm: "info-offset-x", infoOffsetYMm: "info-offset-y",
+  arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
+  labelFontSizePt: "label-font-size", markerScale: "marker-scale",
+  elevationFontSizePt: "elevation-font-size", routeScale: "route-scale",
+  routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
+  elevationThreshold: "elevation-threshold", showProfile: "show-profile",
+  showProfileElevation: "show-profile-elevation", showWaypoints: "show-waypoints",
+  showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
+  antialias: "antialias", metaPosition: "meta-position",
+  profilePosition: "profile-position", previewScale: "preview-scale"
+};
+
+function applyLayoutSettings(settings) {
+  Object.entries(layoutControlMap).forEach(([key, id]) => {
+    if (!(key in settings)) return;
+    if ($(id).type === "checkbox") $(id).checked = Boolean(settings[key]);
+    else $(id).value = settings[key];
+  });
+  setMarginLinked(settings.marginMode !== "individual", false);
+  applyPreviewScale();
+  const mode = settings.sizeMode === "mm" ? "mm" : "px";
+  document.querySelector(`input[name="size-mode"][value="${mode}"]`).click();
+  update();
+}
+
+$("save-layout").addEventListener("click", () => {
+  const s = state();
+  const layout = Object.fromEntries(layoutSettingKeys.map((key) => [key, s[key]]));
+  const payload = { settingsType: "layout", version: 1, ...layout };
+  const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "Route";
+  downloadBlob(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }), `${safeTitle}_layout.json`);
+});
+
+$("layout-settings-file").addEventListener("change", async (event) => {
+  try {
+    const settings = JSON.parse(await event.target.files[0].text());
+    applyLayoutSettings(settings);
+    setStatus("Layout loaded. GPX range and label content were preserved.");
+  } catch {
+    setStatus("Unable to load layout JSON.", true);
+  } finally {
+    event.target.value = "";
+  }
+});
 $("settings-file").addEventListener("change", async (event) => {
   try {
     const settings = JSON.parse(await event.target.files[0].text());
