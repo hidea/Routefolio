@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=20260802-54">
+  <link rel="stylesheet" href="styles.css?v=20260802-55">
 </head>
 <body>
   <main class="workspace">
@@ -74,7 +74,7 @@
         <summary><span class="step-number">02</span><span>Labels &amp; text</span></summary>
         <div class="settings-body">
         <div class="field-grid">
-          <label class="wide">Section name<input id="section-title" value="Section 4: Crossing the Mountains"></label>
+          <label class="wide">Heading<input id="section-title" value="Section 4: Crossing the Mountains"></label>
           <label>Start-point name<input id="start-name" value="Start"></label>
           <label>Finish-point name<input id="finish-name" value="Finish"></label>
           <label>Start-name direction
@@ -166,7 +166,7 @@
             <label>Label size pt<input id="label-font-size" type="number" min="4" max="144" step="0.5" value="10"></label>
             <label>Marker size %<input id="marker-scale" type="number" min="10" max="200" step="5" value="100"></label>
             <label>Profile label size pt<input id="elevation-font-size" type="number" min="4" max="144" step="0.5" value="7"></label>
-            <label>Heading block placement
+            <label class="wide">Heading placement
               <select id="meta-position">
                 <option value="top-left">Top left</option>
                 <option value="top-center">Top center</option>
@@ -179,16 +179,20 @@
                 <option value="bottom-right">Bottom right</option>
               </select>
             </label>
-            <label>Section name horizontal offset mm<input id="info-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            <label>Section name vertical offset mm<input id="info-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <div class="field-pair wide" role="group" aria-label="Heading block offset">
+              <label>Heading horizontal offset mm<input id="info-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+              <label>Heading vertical offset mm<input id="info-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            </div>
           </div>
         </fieldset>
         <fieldset class="settings-subgroup">
           <legend>Map placement</legend>
           <div class="field-grid">
-            <label>Map zoom %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
-            <label>Horizontal offset mm<input id="route-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            <label>Vertical offset mm<input id="route-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label class="wide">Map zoom %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
+            <div class="field-pair wide" role="group" aria-label="Map offset">
+              <label>Horizontal offset mm<input id="route-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+              <label>Vertical offset mm<input id="route-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            </div>
           </div>
         </fieldset>
         <fieldset class="settings-subgroup">
@@ -207,11 +211,15 @@
                 <option value="center-right">Center right</option>
               </select>
             </label>
-            <label>Line width mm<input id="profile-width" type="number" min="0.1" max="1.5" step="0.05" value="0.3"></label>
-            <label>Width mm<input id="profile-box-width" type="number" min="10" max="1000" step="0.1" value="85.3"></label>
-            <label>Height mm<input id="profile-box-height" type="number" min="10" max="1000" step="0.1" value="29.8"></label>
-            <label>Horizontal offset mm<input id="profile-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            <label>Vertical offset mm<input id="profile-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label class="wide">Line width mm<input id="profile-width" type="number" min="0.1" max="1.5" step="0.05" value="0.3"></label>
+            <div class="field-pair wide" role="group" aria-label="Elevation profile dimensions">
+              <label>Width mm<input id="profile-box-width" type="number" min="10" max="1000" step="0.1" value="85.3"></label>
+              <label>Height mm<input id="profile-box-height" type="number" min="10" max="1000" step="0.1" value="29.8"></label>
+            </div>
+            <div class="field-pair wide" role="group" aria-label="Elevation profile offset">
+              <label>Horizontal offset mm<input id="profile-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+              <label>Vertical offset mm<input id="profile-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            </div>
           </div>
         </fieldset>
         <fieldset class="settings-subgroup visibility-options">

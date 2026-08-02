@@ -64,6 +64,7 @@
 .controls h2 { @apply mt-0 mb-3.5 text-[.78rem] font-semibold tracking-[.12em]; }
 .field-grid { @apply grid grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
 .field-grid .wide { @apply col-span-full; }
+.field-pair { @apply grid min-w-0 grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
 .custom-labels-heading { @apply mt-3 flex items-center justify-between; }
 .custom-labels-heading h3 { @apply m-0 text-[.76rem] tracking-[.08em]; }
 .add-label-button { @apply mt-2; }
