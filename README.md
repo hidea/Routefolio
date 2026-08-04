@@ -2,7 +2,7 @@
 
 A web app that generates a monochrome route image from a GPX file, complete with a bold route line, direction of travel, place annotations, background map, and elevation profile.
 
-The background can be switched between a standard map, a two-tone water/land map, and terrain emphasis. Within Japan the water/land style draws smooth water polygons from the GSI vector-tile experiment. Wide-area views use Natural Earth land polygons with level of detail: the lighter 50m data for Japan-wide and broader views, and 10m data after zooming in to a regional view. Outside Japan it falls back to processing OpenStreetMap tiles. The terrain style uses GSI hillshade in Japan and keyless OpenTopoMap tiles overseas. Attribution is shown both on screen and in the saved image.
+The background can be switched between a standard map, a two-tone water/land map, and terrain emphasis. Within Japan the water/land style draws smooth water polygons from the GSI vector-tile experiment. It keeps the original boundary coordinates while filtering small and narrow water features by their visible size, so coastlines and large lakes remain detailed without filling the map with fine rivers. Wide-area views use Natural Earth land polygons with level of detail: the lighter 50m data for Japan-wide and broader views, and 10m data after zooming in to a regional view. Outside Japan it falls back to processing OpenStreetMap tiles. The terrain style uses GSI hillshade in Japan and keyless OpenTopoMap tiles overseas. Attribution is shown both on screen and in the saved image.
 
 ## Getting started
 

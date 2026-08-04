@@ -980,6 +980,8 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
 
 async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
   const minZoom = 4;
+  const minimumFeatureAreaPx = 24;
+  const minimumWaterWidthPx = 3;
   let zoom = clamp(Math.round(Math.log2(scale / 256)) - 1, minZoom, 16);
   if (zoom <= 7) return broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 5 ? "50m" : "10m" });
   const viewMinX = (0 - offsetX) / scale;
@@ -1019,7 +1021,7 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
       const vectorTile = await vectorTileData(tile.url);
       successfulTiles++;
       const layer = vectorTile.layers.waterarea;
-      if (!layer) return "";
+      if (!layer) return { path: "", fallback: "" };
       const paths = [];
       for (let index = 0; index < layer.length; index++) {
         const feature = layer.feature(index);
@@ -1028,13 +1030,9 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
         let path = "";
         let visibleArea = 0;
         let visiblePerimeter = 0;
-        let touchesTileEdge = false;
         for (const ring of rings) {
           if (ring.length < 3) continue;
           let ringArea = 0;
-          if (ring.some((point) => point.x <= 1 || point.y <= 1 || point.x >= feature.extent - 1 || point.y >= feature.extent - 1)) {
-            touchesTileEdge = true;
-          }
           const points = ring.map((point) => ({
             x: (tile.tx + point.x / feature.extent) / count * scale + offsetX,
             y: (tile.ty + point.y / feature.extent) / count * scale + offsetY
@@ -1048,19 +1046,28 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
           visibleArea = Math.max(visibleArea, Math.abs(ringArea) / 2);
           path += points.map((point, pointIndex) => `${pointIndex ? "L" : "M"}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join("") + "Z";
         }
-        if (path && visibleArea >= 24 && (touchesTileEdge || visibleArea / Math.max(1, visiblePerimeter) >= 1.5)) {
+        const estimatedWidth = 2 * visibleArea / Math.max(1, visiblePerimeter);
+        if (path && visibleArea >= minimumFeatureAreaPx && estimatedWidth >= minimumWaterWidthPx) {
           paths.push(`<path d="${path}" fill-rule="evenodd"/>`);
         }
       }
-      return paths.join("");
-    } catch {
-      return "";
+      return { path: paths.join(""), fallback: "" };
+    } catch (error) {
+      if (!String(error.message).includes("404")) return { path: "", fallback: "" };
+      const x = tile.tx / count * scale + offsetX;
+      const y = tile.ty / count * scale + offsetY;
+      const size = scale / count + 1;
+      return {
+        path: "",
+        fallback: `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" fill="#cacaca"/>`
+      };
     }
   }));
-  if (!successfulTiles) return null;
-  const paths = rendered.filter(Boolean).join("");
+  const paths = rendered.map((item) => item.path).filter(Boolean).join("");
+  const fallback = rendered.map((item) => item.fallback).filter(Boolean).join("");
+  if (!successfulTiles && !fallback) return null;
   return {
-    svg: paths ? `<g fill="#cacaca" stroke="#cacaca" stroke-width=".6" stroke-linejoin="round">${paths}</g>` : "",
+    svg: `${fallback}${paths ? `<g fill="#cacaca" stroke="#cacaca" stroke-width=".6" stroke-linejoin="round">${paths}</g>` : ""}`,
     attribution: t("Source: GSI Vector Tiles (Geospatial Information Authority of Japan)"),
     failed: false
   };
