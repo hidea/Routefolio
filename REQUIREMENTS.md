@@ -67,10 +67,11 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - The elevation profile width and height can be specified directly in millimeters.
 - Output margins can be specified in millimeters, either as one value for all sides or separately for top/right/bottom/left.
 - The background map and elevation profile can each be toggled on or off.
+- The background map can be switched between the standard map, a two-tone water/land map, and a terrain-emphasis map.
 - The live preview display scale can be adjusted from 1% to 300% without changing exported image dimensions, and can be fit within the preview area in both dimensions.
 - Fetch a background map around the route from a public map service.
 - If the route is within Japan, use the Geospatial Information Authority of Japan (GSI) map as the background.
-- If the route is outside Japan, use OpenStreetMap as the background.
+- If the route is outside Japan, use OpenStreetMap as the standard background and OpenTopoMap for terrain emphasis.
 - Comply with the background map's attribution and terms of use.
 - Save as SVG and PNG.
 - Save and load settings as JSON.
@@ -97,7 +98,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - The background map can be hidden via settings.
 - Routes within Japan use the GSI map.
 - Confirm and implement GSI's image output conditions, usage limits, required attribution, and browser fetch method.
-- Routes outside Japan use OpenStreetMap.
+- Routes outside Japan use OpenStreetMap, or OpenTopoMap when terrain emphasis is selected.
 - Confirm and implement OpenStreetMap's tile usage terms, required copyright notice, usage limits, and image output method.
 
 ## 9. Acceptance criteria

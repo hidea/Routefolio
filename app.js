@@ -1,4 +1,6 @@
 import { Canvg } from "canvg";
+import { VectorTile } from "@mapbox/vector-tile";
+import { PbfReader } from "pbf";
 import tzlookup from "tz-lookup";
 import { t, translateElement } from "./i18n.js";
 
@@ -10,6 +12,7 @@ const ids = [
   "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
   "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
   "route-scale", "route-offset-x", "route-offset-y",
+  "map-style",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-datetime",
   "show-map", "show-arrows", "antialias", "start-label-position", "finish-label-position",
   "meta-position", "profile-position"
@@ -19,6 +22,9 @@ let routeData = null;
 let sourceRouteData = null;
 let currentSvg = "";
 let renderVersion = 0;
+let renderedState = null;
+let previewLoadingSince = 0;
+let previewLoadingTimer;
 
 const state = () => {
   const sizeMode = document.querySelector('input[name="size-mode"]:checked').value;
@@ -56,6 +62,7 @@ const state = () => {
     markerScale: clamp(Number($("marker-scale").value), 10, 200),
     elevationFontSizePt: clamp(Number($("elevation-font-size").value), 4, 144),
     routeScale: clamp(Number($("route-scale").value), 50, 300),
+    mapStyle: $("map-style").value,
     routeOffsetXMm: clamp(Number($("route-offset-x").value), -500, 500),
     routeOffsetYMm: clamp(Number($("route-offset-y").value), -500, 500),
     elevationThreshold: clamp(Number($("elevation-threshold").value), 0, 50),
@@ -583,6 +590,9 @@ function esc(value) {
 }
 
 const tileCache = new Map();
+let worldLandPromise;
+const broadWaterBackgroundCache = new Map();
+const broadLandPathCache = new Map();
 const routeBoundsCache = new WeakMap();
 
 function routeBounds(data) {
@@ -711,7 +721,7 @@ async function generateSvg(data, s, renderData = data) {
     : "";
   const japan = layoutPoints.every((p) => p.lat >= 20 && p.lat <= 46 && p.lon >= 122 && p.lon <= 154);
   const background = s.showMap
-    ? await tileBackgroundSvg({ w, h, scale, offsetX, offsetY, minX, maxX, minY, maxY, japan })
+    ? await tileBackgroundSvg({ w, h, scale, offsetX, offsetY, minX, maxX, minY, maxY, japan, mapStyle: s.mapStyle })
     : { svg: "", attribution: "" };
   const arrows = s.showArrows
     ? renderSegments.map((segment) => arrowSvg(segment.map((point) => {
@@ -753,19 +763,19 @@ async function generateSvg(data, s, renderData = data) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ${renderingHints} role="img" aria-labelledby="svg-title svg-desc">
   <title id="svg-title">${esc(s.sectionTitle)} route diagram</title>
   <desc id="svg-desc">Route of ${(data.totalDistance / 1000).toFixed(1)} km with elevation profile</desc>
-  <defs><filter id="map-gray"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".55" intercept=".42"/><feFuncG type="linear" slope=".55" intercept=".42"/><feFuncB type="linear" slope=".55" intercept=".42"/></feComponentTransfer></filter></defs>
+  <defs><filter id="map-gray"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".55" intercept=".42"/><feFuncG type="linear" slope=".55" intercept=".42"/><feFuncB type="linear" slope=".55" intercept=".42"/></feComponentTransfer></filter><filter id="map-terrain"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".82" intercept=".12"/><feFuncG type="linear" slope=".82" intercept=".12"/><feFuncB type="linear" slope=".82" intercept=".12"/></feComponentTransfer></filter></defs>
   <rect width="${w}" height="${h}" fill="#fff"/>
-  ${background.svg}
+  <g id="map-background">${background.svg}</g>
   <g fill="#111" font-family="${sans}">
     <g text-anchor="${info.anchor}" paint-order="stroke" stroke="#fff">
       <text x="${info.x}" y="${info.titleY}" font-size="${infoFs}" font-weight="800" stroke-width="${infoFs * .2}">${esc(s.sectionTitle)}</text>
       ${metricText}
       ${dateTexts}
     </g>
-    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <path d="${paths}" stroke="#fff" stroke-width="${linePx * 2.7}"/>
+    <g id="route-overlay"><g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="${paths}" stroke="#fff" stroke-width="${linePx * 2}"/>
       <path d="${paths}" stroke="#111" stroke-width="${linePx}"/>
-      ${transportPaths ? `<path d="${transportPaths}" stroke="#fff" stroke-width="${linePx * 2.7}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>
+      ${transportPaths ? `<path d="${transportPaths}" stroke="#fff" stroke-width="${linePx * 2}" stroke-linecap="butt"/>
       <path d="${transportPaths}" stroke="#111" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
     </g>
     ${arrows}
@@ -773,6 +783,7 @@ async function generateSvg(data, s, renderData = data) {
     ${s.finishName ? `<circle cx="${finishX}" cy="${finishY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
     ${labels.join("")}
     ${customLabelSvg}
+    </g>
     ${profile}
     ${scaleBar}
     <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${auxiliaryFontSize * .2}">${esc(background.attribution)}</text>
@@ -889,8 +900,15 @@ function positionedBox(position, w, h, margin, boxW, boxH) {
   return { left, right: left + boxW, top, bottom: top + boxH };
 }
 
-async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
-  let zoom = clamp(Math.round(Math.log2(scale / 256)), japan ? 5 : 1, japan ? 18 : 19);
+async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyle = "standard" }) {
+  if (mapStyle === "water" && japan) {
+    const vectorBackground = await vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY });
+    if (vectorBackground) return vectorBackground;
+  }
+  const terrain = mapStyle === "terrain";
+  const minZoom = terrain ? (japan ? 2 : 0) : (japan ? 5 : 1);
+  const maxZoom = terrain ? (japan ? 16 : 17) : (japan ? 18 : 19);
+  let zoom = clamp(Math.round(Math.log2(scale / 256)), minZoom, maxZoom);
   const viewMinX = (0 - offsetX) / scale;
   const viewMaxX = (w - offsetX) / scale;
   const viewMinY = (0 - offsetY) / scale;
@@ -907,23 +925,29 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
     };
     if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= 64) break;
     zoom--;
-  } while (zoom > (japan ? 5 : 1));
+  } while (zoom > minZoom);
   const { count, x0, x1, y0, y1 } = range;
-  const source = japan ? "gsi" : "osm";
+  const source = terrain ? (japan ? "gsi" : "opentopomap") : (japan ? "gsi" : "osm");
   const tiles = [];
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
       if (ty < 0 || ty >= count) continue;
       const wrappedX = ((tx % count) + count) % count;
-      const url = japan
-        ? `https://cyberjapandata.gsi.go.jp/xyz/pale/${zoom}/${wrappedX}/${ty}.png`
-        : `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${ty}.png`;
+      const url = terrain
+        ? japan
+          ? `https://cyberjapandata.gsi.go.jp/xyz/hillshademap/${zoom}/${wrappedX}/${ty}.png`
+          : `https://a.tile.opentopomap.org/${zoom}/${wrappedX}/${ty}.png`
+        : japan
+          ? `https://cyberjapandata.gsi.go.jp/xyz/pale/${zoom}/${wrappedX}/${ty}.png`
+          : `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${ty}.png`;
       tiles.push({ tx, ty, url });
     }
   }
   const rendered = await Promise.all(tiles.map(async (tile) => {
     try {
-      const href = await tileDataUrl(tile.url);
+      const href = mapStyle === "water"
+        ? await binaryWaterTileDataUrl(tile.url)
+        : await tileDataUrl(tile.url);
       const x = tile.tx / count * scale + offsetX;
       const y = tile.ty / count * scale + offsetY;
       const size = scale / count + 1;
@@ -933,7 +957,11 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
     }
   }));
   const loaded = rendered.filter(Boolean);
-  const attribution = source === "gsi" ? t("Source: GSI Tiles (Geospatial Information Authority of Japan)") : "© OpenStreetMap contributors";
+  const attribution = source === "gsi"
+    ? t("Source: GSI Tiles (Geospatial Information Authority of Japan)")
+    : source === "opentopomap"
+      ? "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC BY-SA)"
+      : "© OpenStreetMap contributors";
   if (!loaded.length) {
     return {
       svg: "",
@@ -942,10 +970,352 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan }) {
     };
   }
   return {
-    svg: `<g filter="url(#map-gray)" opacity=".72">${loaded.join("")}</g>`,
+    svg: mapStyle === "water"
+      ? `<g opacity=".82">${loaded.join("")}</g>`
+      : `<g filter="url(#${terrain ? "map-terrain" : "map-gray"})" opacity="${terrain ? ".65" : ".72"}">${loaded.join("")}</g>`,
     attribution,
     failed: false
   };
+}
+
+async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
+  const minZoom = 4;
+  let zoom = clamp(Math.round(Math.log2(scale / 256)) - 1, minZoom, 16);
+  if (zoom <= 7) return broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 5 ? "50m" : "10m" });
+  const viewMinX = (0 - offsetX) / scale;
+  const viewMaxX = (w - offsetX) / scale;
+  const viewMinY = (0 - offsetY) / scale;
+  const viewMaxY = (h - offsetY) / scale;
+  let range;
+  do {
+    const count = 2 ** zoom;
+    range = {
+      count,
+      x0: Math.floor(viewMinX * count),
+      x1: Math.floor(viewMaxX * count),
+      y0: Math.floor(viewMinY * count),
+      y1: Math.floor(viewMaxY * count)
+    };
+    if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= 64) break;
+    zoom--;
+  } while (zoom > minZoom);
+  const { count, x0, x1, y0, y1 } = range;
+  const tiles = [];
+  for (let ty = y0; ty <= y1; ty++) {
+    for (let tx = x0; tx <= x1; tx++) {
+      if (ty < 0 || ty >= count) continue;
+      const wrappedX = ((tx % count) + count) % count;
+      tiles.push({
+        tx,
+        ty,
+        wrappedX,
+        url: `https://cyberjapandata.gsi.go.jp/xyz/experimental_bvmap/${zoom}/${wrappedX}/${ty}.pbf`
+      });
+    }
+  }
+  let successfulTiles = 0;
+  const rendered = await Promise.all(tiles.map(async (tile) => {
+    try {
+      const vectorTile = await vectorTileData(tile.url);
+      successfulTiles++;
+      const layer = vectorTile.layers.waterarea;
+      if (!layer) return "";
+      const paths = [];
+      for (let index = 0; index < layer.length; index++) {
+        const feature = layer.feature(index);
+        if (![5000, 55000].includes(Number(feature.properties.ftCode))) continue;
+        const rings = feature.loadGeometry();
+        let path = "";
+        let visibleArea = 0;
+        let visiblePerimeter = 0;
+        let touchesTileEdge = false;
+        for (const ring of rings) {
+          if (ring.length < 3) continue;
+          let ringArea = 0;
+          if (ring.some((point) => point.x <= 1 || point.y <= 1 || point.x >= feature.extent - 1 || point.y >= feature.extent - 1)) {
+            touchesTileEdge = true;
+          }
+          const points = ring.map((point) => ({
+            x: (tile.tx + point.x / feature.extent) / count * scale + offsetX,
+            y: (tile.ty + point.y / feature.extent) / count * scale + offsetY
+          }));
+          for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+            const current = points[pointIndex];
+            const next = points[(pointIndex + 1) % points.length];
+            ringArea += current.x * next.y - next.x * current.y;
+            visiblePerimeter += Math.hypot(next.x - current.x, next.y - current.y);
+          }
+          visibleArea = Math.max(visibleArea, Math.abs(ringArea) / 2);
+          path += points.map((point, pointIndex) => `${pointIndex ? "L" : "M"}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join("") + "Z";
+        }
+        if (path && visibleArea >= 24 && (touchesTileEdge || visibleArea / Math.max(1, visiblePerimeter) >= 1.5)) {
+          paths.push(`<path d="${path}" fill-rule="evenodd"/>`);
+        }
+      }
+      return paths.join("");
+    } catch {
+      return "";
+    }
+  }));
+  if (!successfulTiles) return null;
+  const paths = rendered.filter(Boolean).join("");
+  return {
+    svg: paths ? `<g fill="#cacaca" stroke="#cacaca" stroke-width=".6" stroke-linejoin="round">${paths}</g>` : "",
+    attribution: t("Source: GSI Vector Tiles (Geospatial Information Authority of Japan)"),
+    failed: false
+  };
+}
+
+async function broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution }) {
+  const cacheKey = [resolution, w, h, scale, offsetX, offsetY]
+    .map((value) => typeof value === "number" ? value.toFixed(3) : value)
+    .join(":");
+  if (broadWaterBackgroundCache.has(cacheKey)) return broadWaterBackgroundCache.get(cacheKey);
+  const rendering = renderBroadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution });
+  broadWaterBackgroundCache.set(cacheKey, rendering);
+  while (broadWaterBackgroundCache.size > 3) {
+    broadWaterBackgroundCache.delete(broadWaterBackgroundCache.keys().next().value);
+  }
+  try {
+    return await rendering;
+  } catch (error) {
+    broadWaterBackgroundCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function renderBroadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution }) {
+  worldLandPromise ||= {};
+  worldLandPromise[resolution] ||= Promise.all([
+    import("topojson-client"),
+    resolution === "50m"
+      ? import("world-atlas/land-50m.json")
+      : import("world-atlas/land-10m.json")
+  ]).then(([{ feature }, { default: topology }]) => {
+    const land = feature(topology, topology.objects.land);
+    return land.type === "FeatureCollection" ? land.features[0] : land;
+  });
+  const land = await worldLandPromise[resolution];
+  if (resolution === "50m") {
+    const pathCacheKey = scale.toFixed(3);
+    let path = broadLandPathCache.get(pathCacheKey);
+    if (!path) {
+      const commands = [];
+      const polygons = land.geometry.type === "MultiPolygon"
+        ? land.geometry.coordinates
+        : [land.geometry.coordinates];
+      for (const polygon of polygons) {
+        for (const ring of polygon) {
+          let previousX = NaN;
+          let previousY = NaN;
+          for (let index = 0; index < ring.length; index++) {
+            const [lon, lat] = ring[index];
+            const projected = mercator({ lon, lat });
+            const x = projected.px * scale;
+            const y = projected.py * scale;
+            if (index === 0) {
+              commands.push(`M${x.toFixed(1)},${y.toFixed(1)}`);
+            } else if (index === ring.length - 1 || Math.hypot(x - previousX, y - previousY) >= .35) {
+              commands.push(`L${x.toFixed(1)},${y.toFixed(1)}`);
+            } else {
+              continue;
+            }
+            previousX = x;
+            previousY = y;
+          }
+          commands.push("Z");
+        }
+      }
+      path = commands.join("");
+      broadLandPathCache.set(pathCacheKey, path);
+      while (broadLandPathCache.size > 3) {
+        broadLandPathCache.delete(broadLandPathCache.keys().next().value);
+      }
+    }
+    return {
+      svg: `<rect width="${w}" height="${h}" fill="#cacaca"/><path id="broad-land" d="${path}" data-offset-x="${offsetX.toFixed(3)}" data-offset-y="${offsetY.toFixed(3)}" transform="translate(${offsetX.toFixed(3)} ${offsetY.toFixed(3)})" fill="#fff" fill-rule="evenodd"/>`,
+      attribution: t("Source: Natural Earth"),
+      failed: false
+    };
+  }
+  const maxRenderSize = resolution === "50m" ? 2048 : 4096;
+  const renderScale = Math.min(1, maxRenderSize / Math.max(w, h));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(w * renderScale));
+  canvas.height = Math.max(1, Math.round(h * renderScale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to render wide-area water map.");
+  context.fillStyle = "#cacaca";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.beginPath();
+  const polygons = land.geometry.type === "MultiPolygon"
+    ? land.geometry.coordinates
+    : [land.geometry.coordinates];
+  for (const polygon of polygons) {
+    for (const ring of polygon) {
+      let previousX = NaN;
+      let previousY = NaN;
+      for (let index = 0; index < ring.length; index++) {
+        const [lon, lat] = ring[index];
+        const projected = mercator({ lon, lat });
+        const x = (projected.px * scale + offsetX) * renderScale;
+        const y = (projected.py * scale + offsetY) * renderScale;
+        if (index === 0) {
+          context.moveTo(x, y);
+        } else if (index === ring.length - 1 || Math.hypot(x - previousX, y - previousY) >= .35) {
+          context.lineTo(x, y);
+        } else {
+          continue;
+        }
+        previousX = x;
+        previousY = y;
+      }
+      context.closePath();
+    }
+  }
+  context.fillStyle = "#fff";
+  context.fill("evenodd");
+  const image = canvas.toDataURL("image/png");
+  return {
+    svg: `<image href="${image}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none"/>`,
+    attribution: t("Source: Natural Earth"),
+    failed: false
+  };
+}
+
+async function vectorTileData(url) {
+  const cacheKey = `vector:${url}`;
+  if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
+  const promise = fetch(url).then(async (response) => {
+    if (!response.ok) throw new Error(`Vector map tile ${response.status}`);
+    return new VectorTile(new PbfReader(new Uint8Array(await response.arrayBuffer())));
+  });
+  tileCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    tileCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function binaryWaterTileDataUrl(url) {
+  const cacheKey = `water:${url}`;
+  if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
+  const promise = tileDataUrl(url).then((source) => new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) {
+        reject(new Error("Unable to process map tile."));
+        return;
+      }
+      context.drawImage(image, 0, 0);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const pixels = imageData.data;
+      let waterMask = new Uint8Array(canvas.width * canvas.height);
+      for (let index = 0; index < pixels.length; index += 4) {
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        const isWater = pixels[index + 3] > 0
+          && blue >= 145
+          && blue > red * 1.035
+          && blue > green * 1.012;
+        waterMask[index / 4] = isWater ? 1 : 0;
+      }
+      // Close small holes left by labels drawn over water, then open the mask
+      // to discard narrow rivers, straits, and inlets while retaining broad water.
+      waterMask = morphWaterMask(morphWaterMask(waterMask, canvas.width, canvas.height, 2, true), canvas.width, canvas.height, 2, false);
+      waterMask = morphWaterMask(morphWaterMask(waterMask, canvas.width, canvas.height, 1, false), canvas.width, canvas.height, 1, true);
+      waterMask = removeSmallWaterComponents(waterMask, canvas.width, canvas.height, 512);
+      for (let index = 0; index < pixels.length; index += 4) {
+        const value = waterMask[index / 4] ? 205 : 255;
+        pixels[index] = value;
+        pixels[index + 1] = value;
+        pixels[index + 2] = value;
+        pixels[index + 3] = 255;
+      }
+      context.putImageData(imageData, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.onerror = reject;
+    image.src = source;
+  }));
+  tileCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    tileCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+function morphWaterMask(mask, width, height, radius, dilate) {
+  const horizontal = new Uint8Array(mask.length);
+  const output = new Uint8Array(mask.length);
+  const target = dilate ? 1 : 0;
+  const fallback = dilate ? 0 : 1;
+  for (let y = 0; y < height; y++) {
+    const row = y * width;
+    for (let x = 0; x < width; x++) {
+      let value = fallback;
+      for (let offset = -radius; offset <= radius; offset++) {
+        const sampleX = Math.min(width - 1, Math.max(0, x + offset));
+        if (mask[row + sampleX] === target) {
+          value = target;
+          break;
+        }
+      }
+      horizontal[row + x] = value;
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let value = fallback;
+      for (let offset = -radius; offset <= radius; offset++) {
+        const sampleY = Math.min(height - 1, Math.max(0, y + offset));
+        if (horizontal[sampleY * width + x] === target) {
+          value = target;
+          break;
+        }
+      }
+      output[y * width + x] = value;
+    }
+  }
+  return output;
+}
+
+function removeSmallWaterComponents(mask, width, height, minimumPixels) {
+  const output = mask.slice();
+  const visited = new Uint8Array(mask.length);
+  const queue = new Int32Array(mask.length);
+  for (let start = 0; start < mask.length; start++) {
+    if (!mask[start] || visited[start]) continue;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    visited[start] = 1;
+    while (head < tail) {
+      const index = queue[head++];
+      const x = index % width;
+      const above = index - width;
+      const below = index + width;
+      const left = index - 1;
+      const right = index + 1;
+      if (above >= 0 && mask[above] && !visited[above]) { visited[above] = 1; queue[tail++] = above; }
+      if (below < mask.length && mask[below] && !visited[below]) { visited[below] = 1; queue[tail++] = below; }
+      if (x > 0 && mask[left] && !visited[left]) { visited[left] = 1; queue[tail++] = left; }
+      if (x < width - 1 && mask[right] && !visited[right]) { visited[right] = 1; queue[tail++] = right; }
+    }
+    if (tail < minimumPixels) {
+      for (let index = 0; index < tail; index++) output[queue[index]] = 0;
+    }
+  }
+  return output;
 }
 
 async function tileDataUrl(url) {
@@ -1097,6 +1467,7 @@ async function update() {
   $("size-summary").value = `${s.width.toLocaleString()} × ${s.height.toLocaleString()} px\n${s.widthMm.toFixed(1)} × ${s.heightMm.toFixed(1)} mm（${s.dpi} DPI）`;
   if (!routeData) return;
   try {
+    setPreviewLoading("Generating preview…");
     setStatus("Generating route…");
     const previewData = previewRouteData(routeData);
     if (s.showMap) {
@@ -1107,15 +1478,18 @@ async function update() {
       $("empty-preview").hidden = true;
       $("download-png").disabled = false;
       $("download-svg").disabled = false;
+      setPreviewLoading("Loading background map…");
       setStatus("Route displayed. Loading background map…");
     }
     const svg = await generateSvg(routeData, s, previewData);
     if (version !== renderVersion) return;
     currentSvg = svg;
     $("preview").innerHTML = currentSvg;
+    renderedState = s;
     $("empty-preview").hidden = true;
     $("download-png").disabled = false;
     $("download-svg").disabled = false;
+    setPreviewLoading();
     const missingElevation = routeData.flat.every((p) => !Number.isFinite(p.ele));
     const excludedTransportCount = routeData.transportLinks?.length || 0;
     const excludedTransportText = excludedTransportCount
@@ -1130,6 +1504,7 @@ async function update() {
       }));
   } catch (error) {
     if (version !== renderVersion) return;
+    setPreviewLoading();
     setStatus(error.message, true);
     $("download-png").disabled = true;
     $("download-svg").disabled = true;
@@ -1140,6 +1515,8 @@ async function loadGpxFiles(files) {
   try {
     const selectedFiles = [...files];
     if (!selectedFiles.length) return;
+    setPreviewLoading("Reading GPX file…");
+    await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
     const parsedItems = await Promise.all(selectedFiles.map(async (file, index) => ({
       file,
       index,
@@ -1177,8 +1554,29 @@ async function loadGpxFiles(files) {
   } catch (error) {
     routeData = null;
     sourceRouteData = null;
+    setPreviewLoading();
     setStatus(error.message, true);
   }
+}
+
+function setPreviewLoading(message = "") {
+  const loading = $("preview-loading");
+  clearTimeout(previewLoadingTimer);
+  if (message) {
+    if (loading.hidden) previewLoadingSince = performance.now();
+    loading.hidden = false;
+    $("preview-loading-text").textContent = t(message);
+    $("preview-shell").setAttribute("aria-busy", "true");
+    return;
+  }
+  const hide = () => {
+    loading.hidden = true;
+    $("preview-loading-text").textContent = "";
+    $("preview-shell").setAttribute("aria-busy", "false");
+  };
+  const remaining = 500 - (performance.now() - previewLoadingSince);
+  if (remaining > 0) previewLoadingTimer = setTimeout(hide, remaining);
+  else hide();
 }
 
 function setStatus(message, error = false) {
@@ -1406,7 +1804,29 @@ async function loadSample() {
 $("load-sample").addEventListener("click", loadSample);
 $("add-custom-label").addEventListener("click", () => addCustomLabel());
 
-ids.forEach((id) => $(id).addEventListener("input", update));
+ids.filter((id) => !["route-offset-x", "route-offset-y"].includes(id))
+  .forEach((id) => $(id).addEventListener("input", update));
+
+function updateRouteOffset() {
+  const s = state();
+  const previewSvg = $("preview").querySelector("svg");
+  const routeOverlay = previewSvg?.querySelector("#route-overlay");
+  const broadLand = previewSvg?.querySelector("#broad-land");
+  if (!renderedState || !previewSvg || !routeOverlay || !broadLand || s.mapStyle !== "water") {
+    update();
+    return;
+  }
+  const pxPerMm = renderedState.dpi / 25.4;
+  const dx = (s.routeOffsetXMm - renderedState.routeOffsetXMm) * pxPerMm;
+  const dy = (s.routeOffsetYMm - renderedState.routeOffsetYMm) * pxPerMm;
+  routeOverlay.setAttribute("transform", `translate(${dx.toFixed(3)} ${dy.toFixed(3)})`);
+  const mapX = Number(broadLand.dataset.offsetX) + dx;
+  const mapY = Number(broadLand.dataset.offsetY) + dy;
+  broadLand.setAttribute("transform", `translate(${mapX.toFixed(3)} ${mapY.toFixed(3)})`);
+}
+
+$("route-offset-x").addEventListener("input", updateRouteOffset);
+$("route-offset-y").addEventListener("input", updateRouteOffset);
 const marginFieldIds = ["margin-top", "margin-right", "margin-bottom", "margin-left"];
 function setMarginLinked(linked, syncValue = false) {
   $("margin-link").setAttribute("aria-pressed", String(linked));
@@ -1475,6 +1895,7 @@ const layoutSettingKeys = [
   "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
   "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
   "routeScale", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
+  "mapStyle",
   "showProfile", "showProfileElevation", "showMap", "showArrows", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
@@ -1489,6 +1910,7 @@ const layoutControlMap = {
   arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
   labelFontSizePt: "label-font-size", markerScale: "marker-scale",
   elevationFontSizePt: "elevation-font-size", routeScale: "route-scale",
+  mapStyle: "map-style",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
   showProfileElevation: "show-profile-elevation",
@@ -1545,6 +1967,7 @@ $("settings-file").addEventListener("change", async (event) => {
       arrowSizeMm: "arrow-size",
       infoFontSizePt: "info-font-size", labelFontSizePt: "label-font-size", markerScale: "marker-scale",
       elevationFontSizePt: "elevation-font-size",
+      mapStyle: "map-style",
       routeScale: "route-scale",
       routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",

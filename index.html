@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=20260802-55">
+  <link rel="stylesheet" href="styles.css?v=20260804-56">
 </head>
 <body>
   <main class="workspace">
@@ -188,6 +188,13 @@
         <fieldset class="settings-subgroup">
           <legend>Map placement</legend>
           <div class="field-grid">
+            <label class="wide">Map style
+              <select id="map-style">
+                <option value="standard">Standard</option>
+                <option value="water">Water and land</option>
+                <option value="terrain">Terrain emphasis</option>
+              </select>
+            </label>
             <label class="wide">Map zoom %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
             <div class="field-pair wide" role="group" aria-label="Map offset">
               <label>Horizontal offset mm<input id="route-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
@@ -255,6 +262,9 @@
         <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noreferrer">GSI Tiles (Geospatial Information Authority of Japan)</a>
         /
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a>
+        <a href="https://opentopomap.org/about" target="_blank" rel="noreferrer">© OpenTopoMap</a>
+        /
+        <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>
       </p>
       <footer class="sidebar-footer">
         <nav class="social-links" aria-label="Project links">
@@ -279,6 +289,10 @@
           <p class="eyebrow">Live preview</p>
           <h2 id="preview-heading">Output figure</h2>
         </div>
+        <div id="preview-loading" class="preview-loading" role="status" aria-live="polite" hidden>
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <span id="preview-loading-text">Loading…</span>
+        </div>
       </div>
       <div id="preview-shell" class="preview-shell">
         <div id="empty-preview" class="empty-preview">
@@ -295,6 +309,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260802-69"></script>
+  <script type="module" src="app.js?v=20260804-70"></script>
 </body>
 </html>

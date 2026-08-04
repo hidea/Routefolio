@@ -13,8 +13,12 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^3.0.0",
     "canvg": "^4.0.3",
-    "tz-lookup": "^6.1.25"
+    "pbf": "^5.1.2",
+    "topojson-client": "^3.1.0",
+    "tz-lookup": "^6.1.25",
+    "world-atlas": "^2.0.2"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
