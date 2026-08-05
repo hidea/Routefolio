@@ -14,7 +14,7 @@ const ids = [
   "route-scale", "route-offset-x", "route-offset-y",
   "map-style",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-datetime",
-  "show-map", "show-arrows", "antialias", "start-label-position", "finish-label-position",
+  "show-map", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
   "meta-position", "profile-position"
 ];
 
@@ -69,6 +69,7 @@ const state = () => {
     timeZone: $("time-zone").value.trim() || "auto",
     showMap: $("show-map").checked,
     showArrows: $("show-arrows").checked,
+    showWatermark: $("show-watermark").checked,
     startLabelPosition: $("start-label-position").value,
     finishLabelPosition: $("finish-label-position").value,
     metaPosition: $("meta-position").value,
@@ -786,7 +787,7 @@ async function generateSvg(data, s, renderData = data) {
     </g>
     ${profile}
     ${scaleBar}
-    <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${auxiliaryFontSize * .2}">${esc(background.attribution)}</text>
+    <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${auxiliaryFontSize * .2}">${esc(background.attribution + (s.showWatermark ? (background.attribution ? ", " : "") + "Made with Routefolio" : ""))}</text>
   </g>
 </svg>`;
 }
@@ -2299,7 +2300,7 @@ const layoutSettingKeys = [
   "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
   "routeScale", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
   "mapStyle",
-  "showProfile", "showProfileElevation", "showMap", "showArrows", "showDatetime",
+  "showProfile", "showProfileElevation", "showMap", "showArrows", "showWatermark", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
 const layoutControlMap = {
@@ -2317,7 +2318,7 @@ const layoutControlMap = {
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
   showProfileElevation: "show-profile-elevation",
-  showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
+  showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
   antialias: "antialias", metaPosition: "meta-position",
   profilePosition: "profile-position", previewScale: "preview-scale"
 };
@@ -2375,7 +2376,7 @@ $("settings-file").addEventListener("change", async (event) => {
       routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
       showProfileElevation: "show-profile-elevation",
-      showMap: "show-map", showArrows: "show-arrows", showDatetime: "show-datetime",
+      showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
       antialias: "antialias", previewScale: "preview-scale",
       startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
       metaPosition: "meta-position", profilePosition: "profile-position",
