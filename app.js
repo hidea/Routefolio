@@ -1518,6 +1518,19 @@ async function update() {
   }
 }
 
+async function updateEndpointNames(sourceData) {
+  const first = sourceData.flat[0];
+  const last = sourceData.flat[sourceData.flat.length - 1];
+  if (!first || !last) return;
+  const startName = await reverseGeocodePlaceName(first.lat, first.lon);
+  if (sourceRouteData !== sourceData) return;
+  if (startName) $("start-name").value = startName;
+  const finishName = await reverseGeocodePlaceName(last.lat, last.lon);
+  if (sourceRouteData !== sourceData) return;
+  if (finishName) $("finish-name").value = finishName;
+  if (startName || finishName) await update();
+}
+
 async function loadGpxFiles(files) {
   try {
     const selectedFiles = [...files];
@@ -1558,6 +1571,7 @@ async function loadGpxFiles(files) {
       });
     updateTimeZoneHint(sourceRouteData);
     await update();
+    updateEndpointNames(sourceRouteData);
   } catch (error) {
     routeData = null;
     sourceRouteData = null;
