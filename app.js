@@ -2,7 +2,7 @@ import { Canvg } from "canvg";
 import { VectorTile } from "@mapbox/vector-tile";
 import { PbfReader } from "pbf";
 import tzlookup from "tz-lookup";
-import { t, translateElement } from "./i18n.js";
+import { t, translateElement, locale } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
 const ids = [
@@ -1809,6 +1809,354 @@ async function loadSample() {
   }
 }
 $("load-sample").addEventListener("click", loadSample);
+
+const PHOTO_EXTENSIONS = [".jpg", ".jpeg", ".heic", ".heif"];
+const PHOTO_MIME_TYPES = ["image/jpeg", "image/heic", "image/heif"];
+
+function isPhotoFile(file) {
+  const name = file.name.toLowerCase();
+  return PHOTO_EXTENSIONS.some((extension) => name.endsWith(extension)) || PHOTO_MIME_TYPES.includes(file.type);
+}
+
+function readIsoBmffBoxes(view, start, end) {
+  const boxes = [];
+  let offset = start;
+  while (offset + 8 <= end) {
+    let size = view.getUint32(offset, false);
+    const type = String.fromCharCode(
+      view.getUint8(offset + 4), view.getUint8(offset + 5), view.getUint8(offset + 6), view.getUint8(offset + 7)
+    );
+    let headerSize = 8;
+    if (size === 1) {
+      const high = view.getUint32(offset + 8, false);
+      const low = view.getUint32(offset + 12, false);
+      size = high * 4294967296 + low;
+      headerSize = 16;
+    } else if (size === 0) {
+      size = end - offset;
+    }
+    if (size < headerSize) break;
+    boxes.push({ type, bodyStart: offset + headerSize, bodyEnd: offset + size });
+    offset += size;
+  }
+  return boxes;
+}
+
+function findExifTiffStartInHeic(view) {
+  if (view.byteLength < 12) return null;
+  const ftypType = String.fromCharCode(view.getUint8(4), view.getUint8(5), view.getUint8(6), view.getUint8(7));
+  if (ftypType !== "ftyp") return null;
+  const metaBox = readIsoBmffBoxes(view, 0, view.byteLength).find((box) => box.type === "meta");
+  if (!metaBox) return null;
+  const metaChildren = readIsoBmffBoxes(view, metaBox.bodyStart + 4, metaBox.bodyEnd);
+  const iinfBox = metaChildren.find((box) => box.type === "iinf");
+  const ilocBox = metaChildren.find((box) => box.type === "iloc");
+  if (!iinfBox || !ilocBox) return null;
+
+  const iinfVersion = view.getUint8(iinfBox.bodyStart);
+  const iinfOffset = iinfBox.bodyStart + 4 + (iinfVersion === 0 ? 2 : 4);
+  let exifItemId = null;
+  for (const infe of readIsoBmffBoxes(view, iinfOffset, iinfBox.bodyEnd)) {
+    if (infe.type !== "infe") continue;
+    const infeVersion = view.getUint8(infe.bodyStart);
+    let p = infe.bodyStart + 4;
+    let itemId;
+    if (infeVersion === 2) { itemId = view.getUint16(p, false); p += 4; }
+    else if (infeVersion === 3) { itemId = view.getUint32(p, false); p += 6; }
+    else continue;
+    const itemType = String.fromCharCode(
+      view.getUint8(p), view.getUint8(p + 1), view.getUint8(p + 2), view.getUint8(p + 3)
+    );
+    if (itemType === "Exif") { exifItemId = itemId; break; }
+  }
+  if (exifItemId === null) return null;
+
+  const ilocVersion = view.getUint8(ilocBox.bodyStart);
+  let p = ilocBox.bodyStart + 4;
+  const sizesByte1 = view.getUint8(p); p += 1;
+  const offsetSize = sizesByte1 >> 4;
+  const lengthSize = sizesByte1 & 0xf;
+  const sizesByte2 = view.getUint8(p); p += 1;
+  const baseOffsetSize = sizesByte2 >> 4;
+  const indexSize = ilocVersion === 1 || ilocVersion === 2 ? (sizesByte2 & 0xf) : 0;
+  const itemCount = ilocVersion < 2 ? view.getUint16(p, false) : view.getUint32(p, false);
+  p += ilocVersion < 2 ? 2 : 4;
+  const readField = (size) => {
+    if (size === 4) { const value = view.getUint32(p, false); p += 4; return value; }
+    if (size === 8) {
+      const high = view.getUint32(p, false);
+      const low = view.getUint32(p + 4, false);
+      p += 8;
+      return high * 4294967296 + low;
+    }
+    return 0;
+  };
+  for (let i = 0; i < itemCount; i++) {
+    const itemId = ilocVersion < 2 ? view.getUint16(p, false) : view.getUint32(p, false);
+    p += ilocVersion < 2 ? 2 : 4;
+    if (ilocVersion === 1 || ilocVersion === 2) p += 2;
+    p += 2;
+    const baseOffset = readField(baseOffsetSize);
+    const extentCount = view.getUint16(p, false); p += 2;
+    let firstExtentOffset = null;
+    for (let extentIndex = 0; extentIndex < extentCount; extentIndex++) {
+      if (indexSize > 0) p += indexSize;
+      const extentOffset = readField(offsetSize);
+      const extentLength = readField(lengthSize);
+      if (extentIndex === 0) firstExtentOffset = extentOffset;
+      void extentLength;
+    }
+    if (itemId === exifItemId) {
+      const absoluteOffset = baseOffset + firstExtentOffset;
+      const exifTiffHeaderOffset = view.getUint32(absoluteOffset, false);
+      return absoluteOffset + 4 + exifTiffHeaderOffset;
+    }
+  }
+  return null;
+}
+
+function findExifTiffStartInJpeg(view) {
+  if (view.byteLength < 4 || view.getUint16(0, false) !== 0xffd8) return null;
+  let offset = 2;
+  while (offset + 4 <= view.byteLength) {
+    const marker = view.getUint16(offset, false);
+    if ((marker & 0xff00) !== 0xff00) break;
+    if (marker === 0xffd9 || marker === 0xffda) break;
+    const segmentLength = view.getUint16(offset + 2, false);
+    if (marker === 0xffe1 && offset + 10 <= view.byteLength) {
+      const header = String.fromCharCode(
+        view.getUint8(offset + 4), view.getUint8(offset + 5), view.getUint8(offset + 6),
+        view.getUint8(offset + 7), view.getUint8(offset + 8)
+      );
+      if (header === "Exif\0" && view.getUint8(offset + 9) === 0) return offset + 10;
+    }
+    offset += 2 + segmentLength;
+  }
+  return null;
+}
+
+function readExifIfds(view, tiffStart) {
+  const empty = { lat: null, lon: null, title: "" };
+  const byteOrderMark = view.getUint16(tiffStart, false);
+  if (byteOrderMark !== 0x4949 && byteOrderMark !== 0x4d4d) return empty;
+  const little = byteOrderMark === 0x4949;
+  if (view.getUint16(tiffStart + 2, little) !== 42) return empty;
+  const ifd0Offset = view.getUint32(tiffStart + 4, little);
+
+  const typeSize = (type) => ({ 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 }[type] || 1);
+
+  const readIfd = (offset) => {
+    const count = view.getUint16(offset, little);
+    const entries = [];
+    for (let i = 0; i < count; i++) {
+      const entryOffset = offset + 2 + i * 12;
+      entries.push({
+        tag: view.getUint16(entryOffset, little),
+        type: view.getUint16(entryOffset + 2, little),
+        numValues: view.getUint32(entryOffset + 4, little),
+        valueOffset: entryOffset + 8
+      });
+    }
+    return entries;
+  };
+
+  const readValue = (entry) => {
+    const size = typeSize(entry.type) * entry.numValues;
+    const dataOffset = size > 4 ? tiffStart + view.getUint32(entry.valueOffset, little) : entry.valueOffset;
+    switch (entry.type) {
+      case 2: {
+        let str = "";
+        for (let i = 0; i < entry.numValues; i++) {
+          const code = view.getUint8(dataOffset + i);
+          if (code === 0) break;
+          str += String.fromCharCode(code);
+        }
+        return str;
+      }
+      case 1:
+        return Array.from({ length: entry.numValues }, (_, i) => view.getUint8(dataOffset + i));
+      case 3:
+        return Array.from({ length: entry.numValues }, (_, i) => view.getUint16(dataOffset + i * 2, little));
+      case 4:
+        return Array.from({ length: entry.numValues }, (_, i) => view.getUint32(dataOffset + i * 4, little));
+      case 5:
+        return Array.from({ length: entry.numValues }, (_, i) => {
+          const num = view.getUint32(dataOffset + i * 8, little);
+          const den = view.getUint32(dataOffset + i * 8 + 4, little);
+          return den ? num / den : 0;
+        });
+      default:
+        return null;
+    }
+  };
+
+  const ifd0 = readIfd(tiffStart + ifd0Offset);
+  const findEntry = (entries, tag) => entries.find((entry) => entry.tag === tag);
+
+  const imageDescriptionEntry = findEntry(ifd0, 0x010e);
+  const imageDescription = imageDescriptionEntry ? String(readValue(imageDescriptionEntry)).trim() : "";
+
+  const xpTitleEntry = findEntry(ifd0, 0x9c9b);
+  let xpTitle = "";
+  if (xpTitleEntry) {
+    const bytes = readValue(xpTitleEntry);
+    const codeUnits = [];
+    for (let i = 0; i + 1 < bytes.length; i += 2) {
+      const code = bytes[i] | (bytes[i + 1] << 8);
+      if (code === 0) break;
+      codeUnits.push(code);
+    }
+    xpTitle = String.fromCharCode(...codeUnits).trim();
+  }
+
+  let lat = null;
+  let lon = null;
+  const gpsIfdEntry = findEntry(ifd0, 0x8825);
+  if (gpsIfdEntry) {
+    const gpsIfd = readIfd(tiffStart + view.getUint32(gpsIfdEntry.valueOffset, little));
+    const latEntry = findEntry(gpsIfd, 2);
+    const lonEntry = findEntry(gpsIfd, 4);
+    if (latEntry && lonEntry) {
+      const latRefEntry = findEntry(gpsIfd, 1);
+      const lonRefEntry = findEntry(gpsIfd, 3);
+      const latDms = readValue(latEntry);
+      const lonDms = readValue(lonEntry);
+      const latRef = (latRefEntry ? readValue(latRefEntry) : "N").trim().toUpperCase();
+      const lonRef = (lonRefEntry ? readValue(lonRefEntry) : "E").trim().toUpperCase();
+      lat = (latDms[0] + latDms[1] / 60 + latDms[2] / 3600) * (latRef === "S" ? -1 : 1);
+      lon = (lonDms[0] + lonDms[1] / 60 + lonDms[2] / 3600) * (lonRef === "W" ? -1 : 1);
+    }
+  }
+  return { lat, lon, title: imageDescription || xpTitle };
+}
+
+function parseExif(arrayBuffer) {
+  const empty = { lat: null, lon: null, title: "" };
+  try {
+    const view = new DataView(arrayBuffer);
+    const tiffStart = findExifTiffStartInJpeg(view) ?? findExifTiffStartInHeic(view);
+    if (tiffStart === null || tiffStart === undefined) return empty;
+    return readExifIfds(view, tiffStart);
+  } catch {
+    return empty;
+  }
+}
+
+function isJapan(lat, lon) {
+  return lat >= 20 && lat <= 46 && lon >= 122 && lon <= 154;
+}
+
+async function reverseGeocodePlaceNameJapan(lat, lon) {
+  try {
+    const url = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`;
+    const response = await fetch(url);
+    if (!response.ok) return "";
+    const data = await response.json();
+    const muniCd = data.results?.muniCd;
+    const aza = data.results?.lv01Nm;
+    if (!muniCd || !aza) return "";
+    const { default: muniNames } = await import("./muni-codes.json");
+    const muniName = muniNames[muniCd];
+    if (!muniName) return aza;
+    return /[市区]$/.test(muniName) ? `${muniName}${aza}` : muniName;
+  } catch {
+    return "";
+  }
+}
+
+async function reverseGeocodePlaceNameOverseas(lat, lon) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=12&accept-language=${locale}`;
+    const response = await fetch(url, { headers: { "Accept-Language": locale } });
+    if (!response.ok) return "";
+    const data = await response.json();
+    const address = data.address || {};
+    const poiKeys = ["attraction", "tourism", "natural", "peak"];
+    for (const key of poiKeys) {
+      if (address[key]) return address[key];
+    }
+    if (data.name) return data.name;
+    const placeKeys = ["city", "town", "village", "municipality", "county"];
+    for (const key of placeKeys) {
+      if (address[key]) return address[key];
+    }
+    return data.display_name?.split(",")[0].trim() || "";
+  } catch {
+    return "";
+  }
+}
+
+async function reverseGeocodePlaceName(lat, lon) {
+  if (isJapan(lat, lon)) {
+    const name = await reverseGeocodePlaceNameJapan(lat, lon);
+    if (name) return name;
+  }
+  return reverseGeocodePlaceNameOverseas(lat, lon);
+}
+
+async function loadPhotoFiles(files) {
+  const selectedFiles = [...files];
+  if (!selectedFiles.length) return;
+  if (selectedFiles.some((file) => !isPhotoFile(file))) {
+    setStatus("Only JPEG or HEIC photos can be dropped here.", true);
+    return;
+  }
+  setPreviewLoading("Reading photo location data…");
+  let addedCount = 0;
+  let skippedCount = 0;
+  for (const file of selectedFiles) {
+    const { lat, lon, title } = parseExif(await file.arrayBuffer());
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      skippedCount += 1;
+      continue;
+    }
+    const name = title || await reverseGeocodePlaceName(lat, lon) || file.name.replace(/\.[^.]+$/, "");
+    addCustomLabel({ name, mode: "coordinate", lat, lon, position: "top", showOnProfile: false });
+    addedCount += 1;
+    if (selectedFiles.length > 1) await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  setPreviewLoading();
+  if (addedCount) {
+    setStatus(skippedCount
+      ? t("photosLoadedWithSkipped", { added: addedCount, skipped: skippedCount })
+      : t("photosLoaded", { count: addedCount }));
+    await update();
+  } else {
+    setStatus(t("photosNoLocation", { count: skippedCount }), true);
+  }
+}
+
+$("photo-file").addEventListener("change", (event) => loadPhotoFiles(event.target.files));
+const photoDropZone = $("photo-drop-zone");
+const photoDropLabel = $("photo-drop-label");
+const defaultPhotoDropLabel = photoDropLabel.textContent;
+let photoDragDepth = 0;
+
+function setPhotoDragover(active) {
+  photoDropZone.classList.toggle("is-dragover", active);
+  photoDropLabel.textContent = active ? t("Drop photo(s) here") : defaultPhotoDropLabel;
+}
+
+photoDropZone.addEventListener("dragenter", (event) => {
+  event.preventDefault();
+  photoDragDepth += 1;
+  setPhotoDragover(true);
+});
+photoDropZone.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+});
+photoDropZone.addEventListener("dragleave", () => {
+  photoDragDepth = Math.max(0, photoDragDepth - 1);
+  if (!photoDragDepth) setPhotoDragover(false);
+});
+photoDropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  photoDragDepth = 0;
+  setPhotoDragover(false);
+  const files = [...event.dataTransfer.files];
+  if (files.length) loadPhotoFiles(files);
+});
 $("add-custom-label").addEventListener("click", () => addCustomLabel());
 
 ids.filter((id) => !["route-offset-x", "route-offset-y"].includes(id))

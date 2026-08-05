@@ -133,6 +133,10 @@ const ja = {
   "Show on elevation profile": "標高プロファイルに表示",
   "Remove this label": "このラベルを削除",
   "Drop GPX file(s) here": "ここにGPXファイルをドロップ",
+  "Add from photos": "写真から追加",
+  "Drop photo(s) here": "ここにドロップ",
+  "Only JPEG or HEIC photos can be dropped here.": "JPEGまたはHEIC形式の写真のみドロップできます。",
+  "Reading photo location data…": "写真の位置情報を読み込み中…",
   "Unable to parse GPX. Please check the XML format.": "GPXを解析できません。XML形式を確認してください。",
   "At least two valid route points are required.": "有効なルート地点が2点以上必要です。",
   "Fewer than two route points fall within the specified range. Please widen the trim range.": "指定範囲内のルート地点が2点未満です。範囲を広げてください。",
@@ -163,7 +167,10 @@ const ja = {
   excludedTransport: "、距離から移動区間{{count}}件を除外",
   multipleGpxMissingTime: "複数GPXファイルの順序を判定できません：{{files}} に時刻データがありません。",
   pngGenerationFailed: "PNGデータの生成に失敗しました：{{message}}",
-  svgConversionFailed: "SVG描画エンジンによる変換に失敗しました：{{message}}"
+  svgConversionFailed: "SVG描画エンジンによる変換に失敗しました：{{message}}",
+  photosLoaded: "{{count}}枚の写真から地点ラベルを追加しました。",
+  photosLoadedWithSkipped: "{{added}}枚の写真から地点ラベルを追加しました（位置情報のない{{skipped}}枚はスキップ）。",
+  photosNoLocation: "{{count}}枚の写真に位置情報がなく、追加できませんでした。"
 };
 
 const dictionaries = { ja };

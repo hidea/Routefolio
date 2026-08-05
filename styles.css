@@ -65,9 +65,12 @@
 .field-grid { @apply grid grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
 .field-grid .wide { @apply col-span-full; }
 .field-pair { @apply grid min-w-0 grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
-.custom-labels-heading { @apply mt-3 flex items-center justify-between; }
+.custom-labels-heading { @apply mt-3 flex items-center justify-between gap-2; }
 .custom-labels-heading h3 { @apply m-0 text-[.76rem] tracking-[.08em]; }
-.add-label-button { @apply mt-2; }
+#photo-drop-zone { @apply min-h-9 shrink-0 px-3 py-2 text-[.68rem]; }
+.add-label-button {
+  @apply mt-2 grid min-h-10 w-full cursor-pointer place-items-center rounded-none border border-ink bg-ink px-2.5 py-2 text-[.76rem] text-white;
+}
 .custom-label-row { @apply mt-2 grid gap-2 border-t border-line py-2; }
 .custom-label-row .remove-label { @apply min-h-0 justify-self-end border-0 border-b border-current bg-transparent px-0 py-1 text-[.72rem] text-[#7b2820]; }
 .file-drop {
@@ -77,7 +80,7 @@
 .file-drop.is-dragover {
   @apply border-2 border-solid bg-[#ece9df] shadow-[inset_0_0_0_2px_#fff];
 }
-.file-drop.is-dragover #gpx-drop-label { @apply font-bold; }
+.file-drop.is-dragover span:first-child { @apply font-bold; }
 .file-drop small { @apply text-muted; overflow-wrap: anywhere; }
 .file-drop input, .upload-button input { @apply absolute size-px opacity-0; }
 .text-button { @apply min-h-0 border-0 border-b border-current bg-transparent px-0 py-1.5 text-ink; }
