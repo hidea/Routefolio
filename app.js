@@ -981,15 +981,16 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
 
 async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
   const minZoom = 4;
+  const maxVectorTileCount = 96;
   const minimumFeatureAreaPx = 24;
   const minimumWaterWidthPx = 3;
-  let zoom = clamp(Math.round(Math.log2(scale / 256)) - 1, minZoom, 16);
+  let zoom = clamp(Math.round(Math.log2(scale / 256)), minZoom, 16);
   // Always render the gap-free global land/sea vector base underneath: it's boolean-precise
   // (no per-pixel misclassification risk, unlike a raster fallback) and covers the whole
   // world, so GSI's detailed water polygons — which only cover Japan's coastline in real
   // detail and can thin out or stop entirely far offshore — simply draw more precisely on
   // top wherever they have data, with no risk of leaving a blank gap where they don't.
-  const basePromise = broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 9 ? "50m" : "10m" });
+  const basePromise = broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 8 ? "50m" : "10m" });
   if (zoom <= 7) return basePromise;
   const viewMinX = (0 - offsetX) / scale;
   const viewMaxX = (w - offsetX) / scale;
@@ -1005,7 +1006,7 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
       y0: Math.floor(viewMinY * count),
       y1: Math.floor(viewMaxY * count)
     };
-    if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= 64) break;
+    if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= maxVectorTileCount) break;
     zoom--;
   } while (zoom > minZoom);
   if (zoom <= 7) return basePromise;
