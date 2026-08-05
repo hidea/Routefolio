@@ -1034,13 +1034,9 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
         let path = "";
         let visibleArea = 0;
         let visiblePerimeter = 0;
-        let touchesTileEdge = false;
         for (const ring of rings) {
           if (ring.length < 3) continue;
           let ringArea = 0;
-          if (ring.some((point) => point.x <= 1 || point.y <= 1 || point.x >= feature.extent - 1 || point.y >= feature.extent - 1)) {
-            touchesTileEdge = true;
-          }
           const points = ring.map((point) => ({
             x: (tile.tx + point.x / feature.extent) / count * scale + offsetX,
             y: (tile.ty + point.y / feature.extent) / count * scale + offsetY
@@ -1055,9 +1051,26 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
           path += points.map((point, pointIndex) => `${pointIndex ? "L" : "M"}${point.x.toFixed(2)},${point.y.toFixed(2)}`).join("") + "Z";
         }
         const estimatedWidth = 2 * visibleArea / Math.max(1, visiblePerimeter);
-        if (path && visibleArea >= minimumFeatureAreaPx && (touchesTileEdge || estimatedWidth >= minimumWaterWidthPx)) {
+        if (path && visibleArea >= minimumFeatureAreaPx && estimatedWidth >= minimumWaterWidthPx) {
           paths.push(`<path d="${path}" fill-rule="evenodd"/>`);
         }
+      }
+      if (!paths.length) return "";
+      // The coarse Natural Earth base can mis-simplify a small landmass (e.g. shrink or
+      // distort a small volcanic island) enough that part of its actual land shows through
+      // as "sea." GSI's water polygons alone can't correct that — they only ever add water,
+      // never repaint land. Wherever GSI genuinely has dense, close-in survey data for this
+      // tile, first erase the base's guess for the whole tile back to land, then lay the
+      // precise water shapes on top. Only do this at high zoom: at country-scale zoom each
+      // tile spans a huge real-world area, so a single qualifying fragment (e.g. a stray
+      // offshore reef) doesn't mean GSI has actually surveyed the whole tile — erasing it
+      // would wipe out large stretches of open ocean the base already renders correctly.
+      if (zoom >= 11) {
+        const tileX = (tile.tx / count * scale + offsetX - .5).toFixed(2);
+        const tileY = (tile.ty / count * scale + offsetY - .5).toFixed(2);
+        const tileSize = (scale / count + 1).toFixed(2);
+        const eraseToLand = `<rect x="${tileX}" y="${tileY}" width="${tileSize}" height="${tileSize}" fill="#fff" stroke="none"/>`;
+        return eraseToLand + paths.join("");
       }
       return paths.join("");
     } catch {
@@ -1067,9 +1080,17 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
   const paths = rendered.filter(Boolean).join("");
   const base = await basePromise;
   if (!base && !paths) return null;
+  // Both sources are genuinely in play whenever GSI paths render: the base layer underneath
+  // (always present) and GSI's more precise coastline drawn on top of it. Credit whichever
+  // data actually contributed to the image, not just whichever call happened to run first.
+  const gsiAttribution = t("Source: GSI Vector Tiles (Geospatial Information Authority of Japan)");
+  const baseCreditOnly = base?.attribution?.replace(/^(出典：|Source:\s*)/, "");
+  const attribution = paths
+    ? (baseCreditOnly ? `${gsiAttribution} / ${baseCreditOnly}` : gsiAttribution)
+    : (base?.attribution || gsiAttribution);
   return {
     svg: `${base?.svg || ""}${paths ? `<g fill="#cacaca" stroke="#cacaca" stroke-width=".6" stroke-linejoin="round">${paths}</g>` : ""}`,
-    attribution: base?.attribution || t("Source: GSI Vector Tiles (Geospatial Information Authority of Japan)"),
+    attribution,
     failed: false
   };
 }
