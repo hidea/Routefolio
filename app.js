@@ -985,13 +985,11 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
   const minimumFeatureAreaPx = 24;
   const minimumWaterWidthPx = 3;
   let zoom = clamp(Math.round(Math.log2(scale / 256)), minZoom, 16);
-  // Always render the gap-free global land/sea vector base underneath: it's boolean-precise
-  // (no per-pixel misclassification risk, unlike a raster fallback) and covers the whole
-  // world, so GSI's detailed water polygons — which only cover Japan's coastline in real
-  // detail and can thin out or stop entirely far offshore — simply draw more precisely on
-  // top wherever they have data, with no risk of leaving a blank gap where they don't.
-  const basePromise = broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 8 ? "50m" : "10m" });
-  if (zoom <= 7) return basePromise;
+  if (zoom <= 7) {
+    return broadWaterLandBackgroundSvg({
+      w, h, scale, offsetX, offsetY, resolution: "50m", japanOnly: false
+    });
+  }
   const viewMinX = (0 - offsetX) / scale;
   const viewMaxX = (w - offsetX) / scale;
   const viewMinY = (0 - offsetY) / scale;
@@ -1009,7 +1007,13 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
     if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= maxVectorTileCount) break;
     zoom--;
   } while (zoom > minZoom);
-  if (zoom <= 7) return basePromise;
+  const useGsiVector = zoom > 7;
+  const basePromise = broadWaterLandBackgroundSvg({
+    w, h, scale, offsetX, offsetY,
+    resolution: zoom <= 8 ? "50m" : "10m",
+    japanOnly: useGsiVector
+  });
+  if (!useGsiVector) return basePromise;
   const { count, x0, x1, y0, y1 } = range;
   const tiles = [];
   for (let ty = y0; ty <= y1; ty++) {
@@ -1097,12 +1101,12 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
   };
 }
 
-async function broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution }) {
-  const cacheKey = [resolution, w, h, scale, offsetX, offsetY]
+async function broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution, japanOnly = false }) {
+  const cacheKey = [resolution, japanOnly ? "japan" : "world", w, h, scale, offsetX, offsetY]
     .map((value) => typeof value === "number" ? value.toFixed(3) : value)
     .join(":");
   if (broadWaterBackgroundCache.has(cacheKey)) return broadWaterBackgroundCache.get(cacheKey);
-  const rendering = renderBroadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution });
+  const rendering = renderBroadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution, japanOnly });
   broadWaterBackgroundCache.set(cacheKey, rendering);
   while (broadWaterBackgroundCache.size > 3) {
     broadWaterBackgroundCache.delete(broadWaterBackgroundCache.keys().next().value);
@@ -1115,20 +1119,29 @@ async function broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, reso
   }
 }
 
-async function renderBroadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution }) {
+async function renderBroadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution, japanOnly }) {
   worldLandPromise ||= {};
-  worldLandPromise[resolution] ||= Promise.all([
+  const datasetKey = `${resolution}:${japanOnly ? "japan" : "world"}`;
+  worldLandPromise[datasetKey] ||= Promise.all([
     import("topojson-client"),
-    resolution === "50m"
-      ? import("world-atlas/land-50m.json")
-      : import("world-atlas/land-10m.json")
+    japanOnly
+      ? resolution === "50m"
+        ? import("world-atlas/countries-50m.json")
+        : import("world-atlas/countries-10m.json")
+      : resolution === "50m"
+        ? import("world-atlas/land-50m.json")
+        : import("world-atlas/land-10m.json")
   ]).then(([{ feature }, { default: topology }]) => {
-    const land = feature(topology, topology.objects.land);
-    return land.type === "FeatureCollection" ? land.features[0] : land;
+    if (!japanOnly) {
+      const land = feature(topology, topology.objects.land);
+      return land.type === "FeatureCollection" ? land.features[0] : land;
+    }
+    const countries = feature(topology, topology.objects.countries);
+    return countries.features.find((country) => String(country.id) === "392");
   });
-  const land = await worldLandPromise[resolution];
+  const land = await worldLandPromise[datasetKey];
   if (resolution === "50m") {
-    const pathCacheKey = scale.toFixed(3);
+    const pathCacheKey = `${japanOnly ? "japan" : "world"}:${scale.toFixed(3)}`;
     let path = broadLandPathCache.get(pathCacheKey);
     if (!path) {
       const commands = [];
