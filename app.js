@@ -983,7 +983,13 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
   const minimumFeatureAreaPx = 24;
   const minimumWaterWidthPx = 3;
   let zoom = clamp(Math.round(Math.log2(scale / 256)) - 1, minZoom, 16);
-  if (zoom <= 7) return broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 5 ? "50m" : "10m" });
+  // Always render the gap-free global land/sea vector base underneath: it's boolean-precise
+  // (no per-pixel misclassification risk, unlike a raster fallback) and covers the whole
+  // world, so GSI's detailed water polygons — which only cover Japan's coastline in real
+  // detail and can thin out or stop entirely far offshore — simply draw more precisely on
+  // top wherever they have data, with no risk of leaving a blank gap where they don't.
+  const basePromise = broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 9 ? "50m" : "10m" });
+  if (zoom <= 7) return basePromise;
   const viewMinX = (0 - offsetX) / scale;
   const viewMaxX = (w - offsetX) / scale;
   const viewMinY = (0 - offsetY) / scale;
@@ -1001,7 +1007,7 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
     if ((range.x1 - range.x0 + 1) * (range.y1 - range.y0 + 1) <= 64) break;
     zoom--;
   } while (zoom > minZoom);
-  if (zoom <= 7) return broadWaterLandBackgroundSvg({ w, h, scale, offsetX, offsetY, resolution: zoom <= 5 ? "50m" : "10m" });
+  if (zoom <= 7) return basePromise;
   const { count, x0, x1, y0, y1 } = range;
   const tiles = [];
   for (let ty = y0; ty <= y1; ty++) {
@@ -1011,62 +1017,15 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
       tiles.push({
         tx,
         ty,
-        wrappedX,
-        url: `https://cyberjapandata.gsi.go.jp/xyz/experimental_bvmap/${zoom}/${wrappedX}/${ty}.pbf`,
-        rasterUrl: `https://cyberjapandata.gsi.go.jp/xyz/pale/${zoom}/${wrappedX}/${ty}.png`
+        url: `https://cyberjapandata.gsi.go.jp/xyz/experimental_bvmap/${zoom}/${wrappedX}/${ty}.pbf`
       });
     }
   }
-  let successfulTiles = 0;
-  const rasterFallbackFor = async (tile) => {
-    try {
-      const href = await binaryWaterTileDataUrl(tile.rasterUrl);
-      const x = tile.tx / count * scale + offsetX;
-      const y = tile.ty / count * scale + offsetY;
-      const size = scale / count + 1;
-      return `<image href="${href}" x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" preserveAspectRatio="none"/>`;
-    } catch {
-      return "";
-    }
-  };
-  // A raster base tile with almost no distinct colors carries no real map detail — it's a
-  // flat background tile (plain sea or, rarely, plain land), so trusting its water/land
-  // classification for a full-tile fallback is safe. A tile with real detail (roads, labels,
-  // contours near the coast) is never used this way, since its coarse classification can
-  // misread land texture as water and speckle noise across otherwise clean vector-drawn land.
-  const isRasterTileUniform = async (url) => {
-    try {
-      const source = await tileDataUrl(url);
-      return await new Promise((resolve) => {
-        const image = new Image();
-        image.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = image.naturalWidth;
-          canvas.height = image.naturalHeight;
-          const context = canvas.getContext("2d", { willReadFrequently: true });
-          if (!context) { resolve(false); return; }
-          context.drawImage(image, 0, 0);
-          const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-          const seen = new Set();
-          for (let index = 0; index < pixels.length; index += 4) {
-            seen.add((pixels[index] << 16) | (pixels[index + 1] << 8) | pixels[index + 2]);
-            if (seen.size > 4) { resolve(false); return; }
-          }
-          resolve(true);
-        };
-        image.onerror = () => resolve(false);
-        image.src = source;
-      });
-    } catch {
-      return false;
-    }
-  };
   const rendered = await Promise.all(tiles.map(async (tile) => {
     try {
       const vectorTile = await vectorTileData(tile.url);
-      successfulTiles++;
       const layer = vectorTile.layers.waterarea;
-      if (!layer) return { path: "", fallback: await rasterFallbackFor(tile) };
+      if (!layer) return "";
       const paths = [];
       for (let index = 0; index < layer.length; index++) {
         const feature = layer.feature(index);
@@ -1100,36 +1059,17 @@ async function vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY }) {
           paths.push(`<path d="${path}" fill-rule="evenodd"/>`);
         }
       }
-      // GSI's experimental vector water tiles thin out far offshore, where a tile can end up
-      // with zero, or only a partial/gapped, water polygon even though the whole tile is open
-      // sea. Fall back to a binarized raster tile whenever this tile's own base map has no real
-      // detail (a flat single-color background — definitely open sea, safe to trust fully) or
-      // carries no vector coverage at all. Tiles with real map detail near the coast are left
-      // vector-only, since blending in the coarser raster there speckles noise across land
-      // (rivers, shorelines) that the vector data already draws precisely.
-      const fallback = (!paths.length || await isRasterTileUniform(tile.rasterUrl))
-        ? await rasterFallbackFor(tile)
-        : "";
-      return { path: paths.join(""), fallback };
-    } catch (error) {
-      if (!String(error.message).includes("404")) return { path: "", fallback: await rasterFallbackFor(tile) };
-      const fallback = await rasterFallbackFor(tile);
-      if (fallback) return { path: "", fallback };
-      const x = tile.tx / count * scale + offsetX;
-      const y = tile.ty / count * scale + offsetY;
-      const size = scale / count + 1;
-      return {
-        path: "",
-        fallback: `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" fill="#cacaca"/>`
-      };
+      return paths.join("");
+    } catch {
+      return "";
     }
   }));
-  const paths = rendered.map((item) => item.path).filter(Boolean).join("");
-  const fallback = rendered.map((item) => item.fallback).filter(Boolean).join("");
-  if (!successfulTiles && !fallback) return null;
+  const paths = rendered.filter(Boolean).join("");
+  const base = await basePromise;
+  if (!base && !paths) return null;
   return {
-    svg: `${fallback}${paths ? `<g fill="#cacaca" stroke="#cacaca" stroke-width=".6" stroke-linejoin="round">${paths}</g>` : ""}`,
-    attribution: t("Source: GSI Vector Tiles (Geospatial Information Authority of Japan)"),
+    svg: `${base?.svg || ""}${paths ? `<g fill="#cacaca" stroke="#cacaca" stroke-width=".6" stroke-linejoin="round">${paths}</g>` : ""}`,
+    attribution: base?.attribution || t("Source: GSI Vector Tiles (Geospatial Information Authority of Japan)"),
     failed: false
   };
 }
