@@ -26,7 +26,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - Center: a bold black line showing the GPX route
 - On the route: arrows indicating direction of travel
 - Bottom left: a scale bar corresponding to the current map zoom level
-- Start point and finish point: symbol, name, elevation. The placement direction of place names can be chosen
+- Start point and finish point: symbol and name, with optional elevation. The placement direction of place names can be chosen
 - Waypoints contained in a GPX file are expanded into editable Additional labels when the file is loaded.
 - Background: a monochrome terrain background fetched from a public map
 - The background map fills the entire output image with no margins
@@ -68,6 +68,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - Output margins can be specified in millimeters, either as one value for all sides or separately for top/right/bottom/left.
 - The background map and elevation profile can each be toggled on or off.
 - The background map can be switched between the standard map, a two-tone water/land map, and a terrain-emphasis map.
+- The background map opacity can be adjusted from 0% to 100% for every map style. At the default 50%, standard, terrain-emphasis, and water/land maps use their previous opacities of 72%, 65%, and 82%, respectively; 100% makes the selected map fully opaque.
 - The live preview display scale can be adjusted from 1% to 300% without changing exported image dimensions, and can be fit within the preview area in both dimensions.
 - Fetch a background map around the route from a public map service.
 - If the route is within Japan, use the Geospatial Information Authority of Japan (GSI) map as the background.

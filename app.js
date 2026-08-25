@@ -11,9 +11,9 @@ const ids = [
   "route-width", "profile-width", "profile-box-width", "profile-box-height",
   "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
   "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
-  "route-scale", "route-offset-x", "route-offset-y",
+  "route-scale", "map-intensity", "route-offset-x", "route-offset-y",
   "map-style",
-  "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-datetime",
+  "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-endpoint-elevation", "show-datetime",
   "show-map", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
   "meta-position", "profile-position"
 ];
@@ -62,6 +62,7 @@ const state = () => {
     markerScale: clamp(Number($("marker-scale").value), 10, 200),
     elevationFontSizePt: clamp(Number($("elevation-font-size").value), 4, 144),
     routeScale: clamp(Number($("route-scale").value), 50, 300),
+    mapIntensity: clamp(Number($("map-intensity").value), 0, 100),
     mapStyle: $("map-style").value,
     routeOffsetXMm: clamp(Number($("route-offset-x").value), -500, 500),
     routeOffsetYMm: clamp(Number($("route-offset-y").value), -500, 500),
@@ -76,6 +77,7 @@ const state = () => {
     profilePosition: $("profile-position").value,
     showProfile: $("show-profile").checked,
     showProfileElevation: $("show-profile-elevation").checked,
+    showEndpointElevation: $("show-endpoint-elevation").checked,
     showDatetime: $("show-datetime").checked,
     antialias: $("antialias").checked,
     previewScale: clamp(Number($("preview-scale").value), 1, 300),
@@ -716,7 +718,7 @@ async function generateSvg(data, s, renderData = data) {
     const [x, y] = xy(point);
     const radius = Math.max(7, h * .007) * markerScale;
     return `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>
-      ${pointLabel(x, y, names.join(" / "), point.ele, position, w, h, endpointFontSize, labelElevationFontSize)}`;
+      ${pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize)}`;
   }).join("");
 
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
@@ -796,12 +798,16 @@ async function generateSvg(data, s, renderData = data) {
   const renderingHints = s.antialias
     ? 'shape-rendering="geometricPrecision" text-rendering="optimizeLegibility"'
     : 'shape-rendering="crispEdges" text-rendering="optimizeSpeed"';
+  const baseMapOpacity = { standard: .72, terrain: .65, water: .82 }[s.mapStyle] ?? .72;
+  const mapOpacity = s.mapIntensity <= 50
+    ? baseMapOpacity * s.mapIntensity / 50
+    : baseMapOpacity + (1 - baseMapOpacity) * (s.mapIntensity - 50) / 50;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ${renderingHints} role="img" aria-labelledby="svg-title svg-desc">
   <title id="svg-title">${esc(s.sectionTitle)} route diagram</title>
   <desc id="svg-desc">Route of ${(data.totalDistance / 1000).toFixed(1)} km with elevation profile</desc>
   <defs><filter id="map-gray"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".55" intercept=".42"/><feFuncG type="linear" slope=".55" intercept=".42"/><feFuncB type="linear" slope=".55" intercept=".42"/></feComponentTransfer></filter><filter id="map-terrain"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".82" intercept=".12"/><feFuncG type="linear" slope=".82" intercept=".12"/><feFuncB type="linear" slope=".82" intercept=".12"/></feComponentTransfer></filter></defs>
   <rect width="${w}" height="${h}" fill="#fff"/>
-  <g id="map-background">${background.svg}</g>
+  <g id="map-background" opacity="${mapOpacity}">${background.svg}</g>
   <g fill="#111" font-family="${sans}">
     <g text-anchor="${info.anchor}" paint-order="stroke" stroke="#fff">
       <text x="${info.x}" y="${info.titleY}" font-size="${infoFs}" font-weight="800" stroke-width="${infoFs * .2}">${esc(s.sectionTitle)}</text>
@@ -1005,8 +1011,8 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
   }
   return {
     svg: mapStyle === "water"
-      ? `<g opacity=".82">${loaded.join("")}</g>`
-      : `<g filter="url(#${terrain ? "map-terrain" : "map-gray"})" opacity="${terrain ? ".65" : ".72"}">${loaded.join("")}</g>`,
+      ? `<g>${loaded.join("")}</g>`
+      : `<g filter="url(#${terrain ? "map-terrain" : "map-gray"})">${loaded.join("")}</g>`,
     attribution,
     failed: false
   };
@@ -2373,9 +2379,9 @@ const layoutSettingKeys = [
   "routeWidthMm", "profileWidthMm", "profileBoxWidthMm", "profileBoxHeightMm",
   "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
   "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
-  "routeScale", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
+  "routeScale", "mapIntensity", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
   "mapStyle",
-  "showProfile", "showProfileElevation", "showMap", "showArrows", "showWatermark", "showDatetime",
+  "showProfile", "showProfileElevation", "showEndpointElevation", "showMap", "showArrows", "showWatermark", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
 const layoutControlMap = {
@@ -2388,11 +2394,12 @@ const layoutControlMap = {
   infoOffsetXMm: "info-offset-x", infoOffsetYMm: "info-offset-y",
   arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
   labelFontSizePt: "label-font-size", markerScale: "marker-scale",
-  elevationFontSizePt: "elevation-font-size", routeScale: "route-scale",
+  elevationFontSizePt: "elevation-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
   mapStyle: "map-style",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
   showProfileElevation: "show-profile-elevation",
+  showEndpointElevation: "show-endpoint-elevation",
   showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
   antialias: "antialias", metaPosition: "meta-position",
   profilePosition: "profile-position", previewScale: "preview-scale"
@@ -2448,9 +2455,11 @@ $("settings-file").addEventListener("change", async (event) => {
       elevationFontSizePt: "elevation-font-size",
       mapStyle: "map-style",
       routeScale: "route-scale",
+      mapIntensity: "map-intensity",
       routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
       showProfileElevation: "show-profile-elevation",
+      showEndpointElevation: "show-endpoint-elevation",
       showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
       antialias: "antialias", previewScale: "preview-scale",
       startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
