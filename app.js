@@ -112,7 +112,8 @@ function readCustomLabels() {
     lat: row.querySelector(".custom-lat").value,
     lon: row.querySelector(".custom-lon").value,
     position: row.querySelector(".custom-position").value,
-    showOnProfile: row.querySelector(".custom-show-profile").checked
+    showOnProfile: row.querySelector(".custom-show-profile").checked,
+    markerStyle: row.dataset.markerStyle || "default"
   })).filter((label) => label.name);
 }
 
@@ -128,6 +129,7 @@ function addCustomLabel(label) {
   label ||= {};
   const row = document.createElement("div");
   row.className = "custom-label-row";
+  row.dataset.markerStyle = label.markerStyle || "default";
   row.innerHTML = `
     <div class="field-grid">
       <label class="wide">Name<input class="custom-name" type="text" placeholder="e.g. Pass, CP1"></label>
@@ -286,25 +288,24 @@ function parseGpx(text) {
 }
 
 function combineRouteData(items) {
-  const missingTime = items.filter(({ data }) => !data.startTime);
-  if (items.length > 1 && missingTime.length) {
-    throw new Error(t("multipleGpxMissingTime", {
-      files: missingTime.map(({ file }) => file.name).join(", ")
-    }));
-  }
-  const ordered = [...items].sort((a, b) => {
-    const timeDifference = new Date(a.data.startTime).getTime() - new Date(b.data.startTime).getTime();
-    return timeDifference || a.index - b.index;
-  });
+  const hasCompleteTimeData = items.every(({ data }) =>
+    data.startTime && Number.isFinite(new Date(data.startTime).getTime()));
+  const ordered = hasCompleteTimeData
+    ? [...items].sort((a, b) => {
+      const timeDifference = new Date(a.data.startTime).getTime() - new Date(b.data.startTime).getTime();
+      return timeDifference || a.index - b.index;
+    })
+    : [...items].sort((a, b) => a.index - b.index);
   const segments = [];
   const flat = [];
   const waypoints = [];
   const transportLinks = [];
+  const fileEndpoints = [];
   let distanceOffset = 0;
   let profileDistanceOffset = 0;
   let previousFileEnd = null;
 
-  ordered.forEach(({ data }) => {
+  ordered.forEach(({ data }, fileIndex) => {
     const pointMap = new Map();
     data.segments.forEach((segment) => {
       const combinedSegment = segment.map((point) => {
@@ -322,6 +323,10 @@ function combineRouteData(items) {
     });
     const currentFileStart = pointMap.get(data.segments[0][0]);
     const currentFileEnd = pointMap.get(data.segments.at(-1).at(-1));
+    fileEndpoints.push(
+      { point: currentFileStart, role: "start", fileIndex },
+      { point: currentFileEnd, role: "finish", fileIndex }
+    );
     if (previousFileEnd && currentFileStart) {
       const gapDistance = haversine(previousFileEnd, currentFileStart);
       if (gapDistance >= 1000) {
@@ -358,6 +363,8 @@ function combineRouteData(items) {
     name: ordered.length === 1 ? ordered[0].data.name : "",
     startTime: ordered[0].data.startTime,
     endTime: [...ordered].reverse().find(({ data }) => data.endTime)?.data.endTime || null,
+    fileEndpoints,
+    fileCount: ordered.length,
     fileNames: ordered.map(({ file }) => file.name)
   };
 }
@@ -396,6 +403,8 @@ function derivedRouteData(source, predicate) {
     waypoints: source.waypoints.filter((point) =>
       point.lat >= minLat && point.lat <= maxLat && point.lon >= minLon && point.lon <= maxLon
     ),
+    fileEndpoints: (source.fileEndpoints || []).filter(({ point }) => predicate(point)),
+    fileCount: source.fileCount,
     startTime: flat.find((point) => point.time)?.time || null,
     endTime: [...flat].reverse().find((point) => point.time)?.time || null
   };
@@ -680,19 +689,45 @@ async function generateSvg(data, s, renderData = data) {
   }).join(" ");
 
   const first = data.flat[0], last = data.flat.at(-1);
-  const [startX, startY] = xy(first);
-  const [finishX, finishY] = xy(last);
-  const labels = [];
   const markerScale = s.markerScale / 100;
   const endpointFontSize = labelFontSize;
-  if (s.startName) labels.push(pointLabel(startX, startY, s.startName, first.ele, s.startLabelPosition, w, h, endpointFontSize, labelElevationFontSize));
-  if (s.finishName) labels.push(pointLabel(finishX, finishY, s.finishName, last.ele, s.finishLabelPosition, w, h, endpointFontSize, labelElevationFontSize));
+  const endpointGroups = [
+    { point: first, endpoints: [{ role: "start", fileIndex: 0 }] },
+    { point: last, endpoints: [{ role: "finish", fileIndex: data.fileCount - 1 }] }
+  ];
+  const endpointMarkers = endpointGroups.map(({ point, endpoints }) => {
+    const isRouteStart = endpoints.some(({ role, fileIndex }) => role === "start" && fileIndex === 0);
+    const isRouteFinish = endpoints.some(({ role, fileIndex }) =>
+      role === "finish" && fileIndex === data.fileCount - 1);
+    const endpointName = endpoints.find(({ name }) => name)?.name || "";
+    const names = [...new Set([
+      isRouteStart ? s.startName : "",
+      !isRouteStart && !isRouteFinish ? endpointName : "",
+      isRouteFinish ? s.finishName : ""
+    ].filter(Boolean))];
+    if (!names.length) {
+      endpoints.forEach(({ role, fileIndex }) => {
+        const baseName = role === "start" ? t("Start") : t("Finish");
+        names.push(`${baseName} ${fileIndex + 1}`);
+      });
+    }
+    if (!names.length) return "";
+    const position = endpoints[0].role === "start" ? s.startLabelPosition : s.finishLabelPosition;
+    const [x, y] = xy(point);
+    const radius = Math.max(7, h * .007) * markerScale;
+    return `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>
+      ${pointLabel(x, y, names.join(" / "), point.ele, position, w, h, endpointFontSize, labelElevationFontSize)}`;
+  }).join("");
 
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
     const [x, y] = xy(point);
     const markerSize = Math.max(5, h * .005) * markerScale;
-    return `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>
-      ${pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, labelElevationFontSize)}`;
+    const endpointStyle = label.markerStyle === "endpoint";
+    const marker = endpointStyle
+      ? `<circle cx="${x}" cy="${y}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>`
+      : `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>`;
+    return `${marker}
+      ${pointLabel(x, y, label.name, endpointStyle ? point.ele : null, label.position, w, h, labelFontSize, labelElevationFontSize)}`;
   }).join("");
 
   const profileMargin = s.profilePosition.startsWith("bottom") && s.showMap
@@ -780,9 +815,7 @@ async function generateSvg(data, s, renderData = data) {
       <path d="${transportPaths}" stroke="#111" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
     </g>
     ${arrows}
-    ${s.startName ? `<circle cx="${startX}" cy="${startY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
-    ${s.finishName ? `<circle cx="${finishX}" cy="${finishY}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>` : ""}
-    ${labels.join("")}
+    ${endpointMarkers}
     ${customLabelSvg}
     </g>
     ${profile}
@@ -1433,6 +1466,18 @@ function pointLabel(x, y, name, ele, position, w, h, fs, elevationFs) {
   </g>`;
 }
 
+function groupedFileEndpoints(endpoints, proximityMeters = 30) {
+  return endpoints.reduce((groups, endpoint) => {
+    const previous = groups.at(-1);
+    if (previous && haversine(previous.point, endpoint.point) <= proximityMeters) {
+      previous.endpoints.push(endpoint);
+    } else {
+      groups.push({ point: endpoint.point, endpoints: [endpoint] });
+    }
+    return groups;
+  }, []);
+}
+
 function profileSvg(data, s, left, right, top, bottom, fs, annotationFontSize, customLabels = []) {
   const allElevationPoints = data.flat.filter((p) => Number.isFinite(p.ele));
   if (allElevationPoints.length < 2) return "";
@@ -1568,16 +1613,32 @@ async function update() {
 }
 
 async function updateEndpointNames(sourceData) {
-  const first = sourceData.flat[0];
-  const last = sourceData.flat[sourceData.flat.length - 1];
-  if (!first || !last) return;
-  const startName = await reverseGeocodePlaceName(first.lat, first.lon);
-  if (sourceRouteData !== sourceData) return;
+  const endpointGroups = groupedFileEndpoints(sourceData.fileEndpoints || []);
+  if (!endpointGroups.length) return;
+  for (const group of endpointGroups) {
+    const name = await reverseGeocodePlaceName(group.point.lat, group.point.lon);
+    if (sourceRouteData !== sourceData) return;
+    if (name) group.endpoints.forEach((endpoint) => { endpoint.name = name; });
+  }
+  const startName = endpointGroups[0].endpoints.find(({ name }) => name)?.name;
+  const finishName = endpointGroups.at(-1).endpoints.find(({ name }) => name)?.name;
   if (startName) $("start-name").value = startName;
-  const finishName = await reverseGeocodePlaceName(last.lat, last.lon);
-  if (sourceRouteData !== sourceData) return;
   if (finishName) $("finish-name").value = finishName;
-  if (startName || finishName) await update();
+  endpointGroups.slice(1, -1).forEach(({ point, endpoints }) => {
+    const fallbackName = endpoints.map(({ role, fileIndex }) =>
+      `${t(role === "start" ? "Start" : "Finish")} ${fileIndex + 1}`).join(" / ");
+    addCustomLabel({
+      name: endpoints.find(({ name }) => name)?.name || fallbackName,
+      mode: "coordinate",
+      lat: point.lat,
+      lon: point.lon,
+      position: endpoints[0].role === "start" ? "top" : "bottom",
+      showOnProfile: false,
+      markerStyle: "endpoint"
+    });
+  });
+  if (endpointGroups.length > 2
+    || endpointGroups.some(({ endpoints }) => endpoints.some(({ name }) => name))) await update();
 }
 
 async function loadGpxFiles(files) {

@@ -166,7 +166,6 @@ const ja = {
   invalidDisplayTimeZone: "無効な表示タイムゾーン：{{zone}}",
   routeGenerated: "ルートを生成しました。{{points}}地点、{{segments}}セグメント{{excluded}}。",
   excludedTransport: "、距離から移動区間{{count}}件を除外",
-  multipleGpxMissingTime: "複数GPXファイルの順序を判定できません：{{files}} に時刻データがありません。",
   pngGenerationFailed: "PNGデータの生成に失敗しました：{{message}}",
   svgConversionFailed: "SVG描画エンジンによる変換に失敗しました：{{message}}",
   photosLoaded: "{{count}}枚の写真から地点ラベルを追加しました。",
