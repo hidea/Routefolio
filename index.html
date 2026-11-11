@@ -199,6 +199,13 @@
                 <option value="terrain">Terrain emphasis</option>
               </select>
             </label>
+            <label>Color
+              <select id="color-mode">
+                <option value="mono">Monochrome</option>
+                <option value="color">Color</option>
+              </select>
+            </label>
+            <label>Route color<input id="route-color" type="color" value="#d23c2a"></label>
             <label class="wide">Map zoom %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
             <label class="wide">Background map opacity %<input id="map-intensity" type="number" min="0" max="100" step="5" value="50"></label>
             <div class="field-pair wide" role="group" aria-label="Map offset">
@@ -253,6 +260,9 @@
         <div class="button-row">
           <button id="download-png" type="button" disabled>Save PNG</button>
           <button id="download-svg" type="button" class="secondary" disabled>Save SVG</button>
+        </div>
+        <div class="button-row">
+          <button id="download-layers" type="button" class="secondary" disabled>Save map / overlay separately</button>
         </div>
         <div class="button-row">
           <button id="save-settings" type="button" class="secondary">Export settings</button>
@@ -316,6 +326,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260806-81"></script>
+  <script type="module" src="app.js?v=20260806-83"></script>
 </body>
 </html>

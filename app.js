@@ -12,7 +12,7 @@ const ids = [
   "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
   "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
   "route-scale", "map-intensity", "route-offset-x", "route-offset-y",
-  "map-style",
+  "map-style", "color-mode", "route-color",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-endpoint-elevation", "show-datetime",
   "show-map", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
   "meta-position", "profile-position"
@@ -64,6 +64,8 @@ const state = () => {
     routeScale: clamp(Number($("route-scale").value), 50, 300),
     mapIntensity: clamp(Number($("map-intensity").value), 0, 100),
     mapStyle: $("map-style").value,
+    colorMode: $("color-mode").value === "color" ? "color" : "mono",
+    routeColor: /^#[0-9a-f]{6}$/i.test($("route-color").value) ? $("route-color").value : "#d23c2a",
     routeOffsetXMm: clamp(Number($("route-offset-x").value), -500, 500),
     routeOffsetYMm: clamp(Number($("route-offset-y").value), -500, 500),
     elevationThreshold: clamp(Number($("elevation-threshold").value), 0, 50),
@@ -89,6 +91,8 @@ const state = () => {
     customLabels: readCustomLabels()
   };
 };
+
+const routeInk = (s) => s.colorMode === "color" ? s.routeColor : "#111";
 
 function clamp(value, min, max) {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
@@ -765,7 +769,7 @@ async function generateSvg(data, s, renderData = data) {
     ? renderSegments.map((segment) => arrowSvg(segment.map((point) => {
       const [x, y] = xy(point);
       return { x, y };
-    }), s.arrowSizeMm / 25.4 * s.dpi)).join("")
+    }), s.arrowSizeMm / 25.4 * s.dpi, routeInk(s))).join("")
     : "";
   const centerLat = all.reduce((sum, point) => sum + point.lat, 0) / all.length;
   const scaleSide = s.showProfile && s.profilePosition.endsWith("left") ? "right" : "left";
@@ -798,6 +802,8 @@ async function generateSvg(data, s, renderData = data) {
   const renderingHints = s.antialias
     ? 'shape-rendering="geometricPrecision" text-rendering="optimizeLegibility"'
     : 'shape-rendering="crispEdges" text-rendering="optimizeSpeed"';
+  const color = s.colorMode === "color";
+  const ink = routeInk(s);
   const baseMapOpacity = { standard: .72, terrain: .65, water: .82 }[s.mapStyle] ?? .72;
   const mapOpacity = s.mapIntensity <= 50
     ? baseMapOpacity * s.mapIntensity / 50
@@ -805,9 +811,9 @@ async function generateSvg(data, s, renderData = data) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" ${renderingHints} role="img" aria-labelledby="svg-title svg-desc">
   <title id="svg-title">${esc(s.sectionTitle)} route diagram</title>
   <desc id="svg-desc">Route of ${(data.totalDistance / 1000).toFixed(1)} km with elevation profile</desc>
-  <defs><filter id="map-gray"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".55" intercept=".42"/><feFuncG type="linear" slope=".55" intercept=".42"/><feFuncB type="linear" slope=".55" intercept=".42"/></feComponentTransfer></filter><filter id="map-terrain"><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope=".82" intercept=".12"/><feFuncG type="linear" slope=".82" intercept=".12"/><feFuncB type="linear" slope=".82" intercept=".12"/></feComponentTransfer></filter></defs>
-  <rect width="${w}" height="${h}" fill="#fff"/>
-  <g id="map-background" opacity="${mapOpacity}">${background.svg}</g>
+  <defs>${mapFilterDefs(color)}</defs>
+  <rect id="paper" width="${w}" height="${h}" fill="#fff"/>
+  <g id="map-background" opacity="${mapOpacity}"${color && s.mapStyle === "water" ? ' filter="url(#map-water-tint)"' : ""}>${background.svg}</g>
   <g fill="#111" font-family="${sans}">
     <g text-anchor="${info.anchor}" paint-order="stroke" stroke="#fff">
       <text x="${info.x}" y="${info.titleY}" font-size="${infoFs}" font-weight="800" stroke-width="${infoFs * .2}">${esc(s.sectionTitle)}</text>
@@ -816,9 +822,9 @@ async function generateSvg(data, s, renderData = data) {
     </g>
     <g id="route-overlay"><g fill="none" stroke-linecap="round" stroke-linejoin="round">
       <path d="${paths}" stroke="#fff" stroke-width="${linePx * 2}"/>
-      <path d="${paths}" stroke="#111" stroke-width="${linePx}"/>
+      <path d="${paths}" stroke="${ink}" stroke-width="${linePx}"/>
       ${transportPaths ? `<path d="${transportPaths}" stroke="#fff" stroke-width="${linePx * 2}" stroke-linecap="butt"/>
-      <path d="${transportPaths}" stroke="#111" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
+      <path d="${transportPaths}" stroke="${ink}" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
     </g>
     ${arrows}
     ${endpointMarkers}
@@ -829,6 +835,15 @@ async function generateSvg(data, s, renderData = data) {
     <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${auxiliaryFontSize * .2}">${esc(background.attribution + (s.showWatermark ? (background.attribution ? ", " : "") + "Made with Routefolio" : ""))}</text>
   </g>
 </svg>`;
+}
+
+function mapFilterDefs(color) {
+  const desaturate = color ? "" : '<feColorMatrix type="saturate" values="0"/>';
+  const lift = (slope, intercept) => `<feComponentTransfer><feFuncR type="linear" slope="${slope}" intercept="${intercept}"/><feFuncG type="linear" slope="${slope}" intercept="${intercept}"/><feFuncB type="linear" slope="${slope}" intercept="${intercept}"/></feComponentTransfer>`;
+  const waterTint = color
+    ? '<filter id="map-water-tint" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="linear" slope="1.641" intercept="-.641"/><feFuncG type="linear" slope=".982" intercept=".018"/><feFuncB type="linear" slope=".472" intercept=".528"/></feComponentTransfer></filter>'
+    : "";
+  return `<filter id="map-gray">${desaturate}${lift(.55, .42)}</filter><filter id="map-terrain">${desaturate}${lift(.82, .12)}</filter>${waterTint}`;
 }
 
 function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left") {
@@ -1434,7 +1449,7 @@ async function tileDataUrl(url) {
   }
 }
 
-function arrowSvg(points, size) {
+function arrowSvg(points, size, color = "#111") {
   if (points.length < 5) return "";
   const targets = [0.22, 0.48, 0.74];
   return targets.map((ratio) => {
@@ -1443,7 +1458,7 @@ function arrowSvg(points, size) {
     const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
     const x = points[i].x, y = points[i].y;
     return `<g transform="translate(${x} ${y}) rotate(${angle})">
-      <path d="M${-size * .7},${-size * .72} L${size * .65},0 L${-size * .7},${size * .72} Z" fill="#111" stroke="#fff" stroke-width="${size * .24}" paint-order="stroke"/>
+      <path d="M${-size * .7},${-size * .72} L${size * .65},0 L${-size * .7},${size * .72} Z" fill="${color}" stroke="#fff" stroke-width="${size * .24}" paint-order="stroke"/>
     </g>`;
   }).join("");
 }
@@ -1559,9 +1574,9 @@ function profileSvg(data, s, left, right, top, bottom, fs, annotationFontSize, c
   const backgroundRight = right + fs;
   return `<g font-family='"Hiragino Sans","Yu Gothic",sans-serif'>
     <rect x="${backgroundLeft}" y="${top}" width="${backgroundRight - backgroundLeft}" height="${bottom - top + fs * 2}" fill="#fff" fill-opacity=".86"/>
-    <path d="${area}" fill="#ededeb"/>
+    <path d="${area}" fill="${s.colorMode === "color" ? s.routeColor : "#ededeb"}"${s.colorMode === "color" ? ' fill-opacity=".18"' : ""}/>
     ${yTicks}
-    <path d="${path}" fill="none" stroke="#111" stroke-width="${Math.max(1, s.profileWidthMm / 25.4 * s.dpi)}"/>
+    <path d="${path}" fill="none" stroke="${routeInk(s)}" stroke-width="${Math.max(1, s.profileWidthMm / 25.4 * s.dpi)}"/>
     ${annotations}
     <line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="#999"/>
     ${xTicks}
@@ -1585,6 +1600,7 @@ async function update() {
       $("empty-preview").hidden = true;
       $("download-png").disabled = false;
       $("download-svg").disabled = false;
+      $("download-layers").disabled = false;
       setPreviewLoading("Loading background map…");
       setStatus("Route displayed. Loading background map…");
     }
@@ -1596,6 +1612,7 @@ async function update() {
     $("empty-preview").hidden = true;
     $("download-png").disabled = false;
     $("download-svg").disabled = false;
+    $("download-layers").disabled = false;
     setPreviewLoading();
     const missingElevation = routeData.flat.every((p) => !Number.isFinite(p.ele));
     const excludedTransportCount = routeData.transportLinks?.length || 0;
@@ -1615,6 +1632,7 @@ async function update() {
     setStatus(error.message, true);
     $("download-png").disabled = true;
     $("download-svg").disabled = true;
+    $("download-layers").disabled = true;
   }
 }
 
@@ -1721,9 +1739,26 @@ function setStatus(message, error = false) {
   $("status").classList.toggle("error", error);
 }
 
-function filename(s, extension) {
+function filename(s, extension, suffix = "") {
   const safeTitle = s.sectionTitle.replace(/[\\/:*?"<>|]/g, "_").slice(0, 40) || "Route";
-  return `${safeTitle}_${s.width}x${s.height}_${s.dpi}dpi.${extension}`;
+  return `${safeTitle}_${s.width}x${s.height}_${s.dpi}dpi${suffix}.${extension}`;
+}
+
+function splitLayers(svg) {
+  const parse = () => {
+    const xml = new DOMParser().parseFromString(svg, "image/svg+xml");
+    if (xml.querySelector("parsererror")) throw new Error("Failed to parse the SVG for layer export.");
+    return xml;
+  };
+  const serialize = (xml) => new XMLSerializer().serializeToString(xml.documentElement);
+  const map = parse();
+  [...map.documentElement.children].forEach((element) => {
+    if (!["defs", "title", "desc"].includes(element.localName) && !["paper", "map-background"].includes(element.id)) element.remove();
+  });
+  const overlay = parse();
+  overlay.getElementById("paper")?.remove();
+  overlay.getElementById("map-background")?.remove();
+  return { map: serialize(map), overlay: serialize(overlay) };
 }
 
 function downloadBlob(blob, name) {
@@ -1778,15 +1813,17 @@ async function textMask(svg, width, height, includeStroke) {
   return ctx.getImageData(0, 0, width, height).data;
 }
 
-async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
+async function svgToPng(svg, width, height, dpi, antialias = true, { color = false, alpha = false } = {}) {
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
-  const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+  const ctx = canvas.getContext("2d", { alpha, willReadFrequently: true });
   if (!ctx) throw new Error("Failed to create a canvas for image conversion.");
   ctx.imageSmoothingEnabled = antialias;
   if (antialias && "imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(0, 0, width, height);
+  if (!alpha) {
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, width, height);
+  }
   let rendered = false;
   const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   const svgUrl = URL.createObjectURL(svgBlob);
@@ -1810,8 +1847,11 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
         text.removeAttribute("paint-order");
       });
       const fallbackSvg = new XMLSerializer().serializeToString(xml.documentElement);
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, width, height);
+      ctx.clearRect(0, 0, width, height);
+      if (!alpha) {
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, width, height);
+      }
       const renderer = Canvg.fromString(ctx, fallbackSvg, {
         ignoreAnimation: true,
         ignoreMouse: true,
@@ -1835,28 +1875,40 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
           rgba[i] = 255;
           rgba[i + 1] = 255;
           rgba[i + 2] = 255;
+          rgba[i + 3] = 255;
         }
         if (textFill[i + 3] >= 128) {
           rgba[i] = 17;
           rgba[i + 1] = 17;
           rgba[i + 2] = 17;
+          rgba[i + 3] = 255;
         }
       }
     }
-    const raw = new Uint8Array((width + 1) * height);
+    const channels = (color ? 3 : 1) + (alpha ? 1 : 0);
+    const colorType = (color ? 2 : 0) + (alpha ? 4 : 0);
+    const stride = width * channels + 1;
+    const raw = new Uint8Array(stride * height);
     for (let y = 0; y < height; y++) {
-      const row = y * (width + 1);
-      raw[row] = 0;
+      let o = y * stride;
+      raw[o++] = 0;
       for (let x = 0; x < width; x++) {
         const i = (y * width + x) * 4;
-        raw[row + 1 + x] = Math.round(rgba[i] * .2126 + rgba[i + 1] * .7152 + rgba[i + 2] * .0722);
+        if (color) {
+          raw[o++] = rgba[i];
+          raw[o++] = rgba[i + 1];
+          raw[o++] = rgba[i + 2];
+        } else {
+          raw[o++] = Math.round(rgba[i] * .2126 + rgba[i + 1] * .7152 + rgba[i + 2] * .0722);
+        }
+        if (alpha) raw[o++] = rgba[i + 3];
       }
     }
-    if (!("CompressionStream" in window)) throw new Error("This browser does not support grayscale PNG compression. Please use SVG instead.");
+    if (!("CompressionStream" in window)) throw new Error("This browser does not support PNG compression. Please use SVG instead.");
     const stream = new Blob([raw]).stream().pipeThrough(new CompressionStream("deflate"));
     const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
     const ppm = Math.round(dpi / .0254);
-    return new Blob([pngSignature(), pngChunk("IHDR", ihdr(width, height)), pngChunk("pHYs", phys(ppm)), pngChunk("IDAT", compressed), pngChunk("IEND", new Uint8Array())], { type: "image/png" });
+    return new Blob([pngSignature(), pngChunk("IHDR", ihdr(width, height, colorType)), pngChunk("pHYs", phys(ppm)), pngChunk("IDAT", compressed), pngChunk("IEND", new Uint8Array())], { type: "image/png" });
   } catch (error) {
     if (error.message?.includes("does not support")) throw error;
     throw new Error(t("pngGenerationFailed", { message: error.message }));
@@ -1865,8 +1917,8 @@ async function svgToGrayscalePng(svg, width, height, dpi, antialias = true) {
 
 const be32 = (value) => new Uint8Array([(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255]);
 const pngSignature = () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-function ihdr(w, h) {
-  return concat(be32(w), be32(h), new Uint8Array([8, 0, 0, 0, 0]));
+function ihdr(w, h, colorType = 0) {
+  return concat(be32(w), be32(h), new Uint8Array([8, colorType, 0, 0, 0]));
 }
 function phys(ppm) {
   return concat(be32(ppm), be32(ppm), new Uint8Array([1]));
@@ -1889,6 +1941,27 @@ function crc32(bytes) {
     for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
   }
   return (crc ^ 0xffffffff) >>> 0;
+}
+
+async function zipStore(files) {
+  const le16 = (v) => new Uint8Array([v & 255, (v >>> 8) & 255]);
+  const le32 = (v) => new Uint8Array([v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]);
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  for (const file of files) {
+    const name = new TextEncoder().encode(file.name);
+    const data = new Uint8Array(await file.blob.arrayBuffer());
+    const crc = crc32(data);
+    const common = concat(le16(20), le16(0x0800), le16(0), le16(0), le16(0x21), le32(crc), le32(data.length), le32(data.length), le16(name.length), le16(0));
+    const local = concat(le32(0x04034b50), common, name);
+    locals.push(local, data);
+    centrals.push(concat(le32(0x02014b50), le16(20), common, le16(0), le16(0), le16(0), le32(0), le32(offset), name));
+    offset += local.length + data.length;
+  }
+  const central = concat(...centrals);
+  const end = concat(le32(0x06054b50), le16(0), le16(0), le16(files.length), le16(files.length), le32(central.length), le32(offset), le16(0));
+  return new Blob([...locals, central, end], { type: "application/zip" });
 }
 
 $("gpx-file").addEventListener("change", (event) => loadGpxFiles(event.target.files));
@@ -2361,9 +2434,27 @@ $("download-png").addEventListener("click", async () => {
   try {
     setStatus("Generating high-resolution PNG…");
     const exportSvg = await generateSvg(routeData, s);
-    const blob = await svgToGrayscalePng(exportSvg, s.width, s.height, s.dpi, s.antialias);
+    const color = s.colorMode === "color";
+    const blob = await svgToPng(exportSvg, s.width, s.height, s.dpi, s.antialias, { color });
     downloadBlob(blob, filename(s, "png"));
-    setStatus("8-bit grayscale PNG saved.");
+    setStatus(color ? "RGB PNG saved." : "8-bit grayscale PNG saved.");
+  } catch (error) {
+    setStatus(error.message, true);
+  }
+});
+$("download-layers").addEventListener("click", async () => {
+  const s = state();
+  try {
+    setStatus("Generating layered PNG…");
+    const layers = splitLayers(await generateSvg(routeData, s));
+    const mapBlob = await svgToPng(layers.map, s.width, s.height, s.dpi, s.antialias, { color: true });
+    const overlayBlob = await svgToPng(layers.overlay, s.width, s.height, s.dpi, s.antialias, { color: s.colorMode === "color", alpha: true });
+    const zip = await zipStore([
+      { name: filename(s, "png", "_map"), blob: mapBlob },
+      { name: filename(s, "png", "_overlay"), blob: overlayBlob }
+    ]);
+    downloadBlob(zip, filename(s, "zip", "_layers"));
+    setStatus("Map and overlay PNG saved.");
   } catch (error) {
     setStatus(error.message, true);
   }
@@ -2380,7 +2471,7 @@ const layoutSettingKeys = [
   "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
   "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
   "routeScale", "mapIntensity", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
-  "mapStyle",
+  "mapStyle", "colorMode", "routeColor",
   "showProfile", "showProfileElevation", "showEndpointElevation", "showMap", "showArrows", "showWatermark", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
@@ -2395,7 +2486,7 @@ const layoutControlMap = {
   arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
   labelFontSizePt: "label-font-size", markerScale: "marker-scale",
   elevationFontSizePt: "elevation-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
-  mapStyle: "map-style",
+  mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
   showProfileElevation: "show-profile-elevation",
@@ -2406,6 +2497,7 @@ const layoutControlMap = {
 };
 
 function applyLayoutSettings(settings) {
+  if (!("colorMode" in settings)) $("color-mode").value = "mono";
   Object.entries(layoutControlMap).forEach(([key, id]) => {
     if (!(key in settings)) return;
     if ($(id).type === "checkbox") $(id).checked = Boolean(settings[key]);
@@ -2453,7 +2545,7 @@ $("settings-file").addEventListener("change", async (event) => {
       arrowSizeMm: "arrow-size",
       infoFontSizePt: "info-font-size", labelFontSizePt: "label-font-size", markerScale: "marker-scale",
       elevationFontSizePt: "elevation-font-size",
-      mapStyle: "map-style",
+      mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color",
       routeScale: "route-scale",
       mapIntensity: "map-intensity",
       routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
@@ -2467,6 +2559,7 @@ $("settings-file").addEventListener("change", async (event) => {
       clipMode: "clip-mode", clipDistanceStart: "clip-distance-start",
       clipDistanceEnd: "clip-distance-end", clipTimeStart: "clip-time-start", clipTimeEnd: "clip-time-end"
     };
+    if (!("colorMode" in settings)) $("color-mode").value = "mono";
     Object.entries(map).forEach(([key, id]) => {
       if (!(key in settings)) return;
       if ($(id).type === "checkbox") $(id).checked = Boolean(settings[key]);

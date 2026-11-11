@@ -39,7 +39,8 @@ The actual project ID is not hard-coded into the repository. Select it locally v
 ## Output
 
 - SVG
-- 8-bit grayscale PNG (with `pHYs` metadata for the specified DPI)
+- PNG with `pHYs` metadata for the specified DPI: 8-bit grayscale in monochrome mode, RGB in color mode
+- Separate layers for retouching, saved together in one ZIP: the background map (`_map.png`, RGB) and everything drawn over it (`_overlay.png`, with transparency). Stacking the overlay on the map reproduces the combined image.
 - Settings JSON for reuse
 
 ## Implementation limitations
