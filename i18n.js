@@ -61,6 +61,7 @@ const ja = {
   "Bottom left": "左下",
   "Left": "左",
   "Top left": "左上",
+  "Hidden": "非表示",
   "Top center": "上中央",
   "Center left": "左中央",
   "Center": "中央",

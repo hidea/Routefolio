@@ -741,7 +741,7 @@ async function generateSvg(data, s, renderData = data) {
     const [x, y] = xy(point);
     const radius = Math.max(7, h * .007) * markerScale;
     return `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>
-      ${pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize)}`;
+      ${position === "hidden" ? "" : pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize)}`;
   }).join("");
 
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
