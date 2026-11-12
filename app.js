@@ -8,11 +8,12 @@ const $ = (id) => document.getElementById(id);
 const ids = [
   "section-title", "start-name", "finish-name",
   "width-px", "height-px", "width-mm", "height-mm", "dpi",
-  "route-width", "profile-width", "profile-box-width", "profile-box-height",
+  "route-width", "route-casing", "route-casing-color", "profile-width", "profile-box-width", "profile-box-height",
   "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
   "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
   "route-scale", "map-intensity", "route-offset-x", "route-offset-y",
   "map-style", "color-mode", "route-color",
+  "arrow-style", "arrow-count", "arrow-placement", "arrow-interval", "arrow-same-as-route", "arrow-color",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-endpoint-elevation", "show-datetime",
   "show-map", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
   "meta-position", "profile-position"
@@ -66,6 +67,14 @@ const state = () => {
     mapStyle: $("map-style").value,
     colorMode: $("color-mode").value === "color" ? "color" : "mono",
     routeColor: /^#[0-9a-f]{6}$/i.test($("route-color").value) ? $("route-color").value : "#d23c2a",
+    routeCasing: ["white", "black", "custom"].includes($("route-casing").value) ? $("route-casing").value : "white",
+    routeCasingColor: /^#[0-9a-f]{6}$/i.test($("route-casing-color").value) ? $("route-casing-color").value : "#1d2733",
+    arrowStyle: ["triangle", "chevron", "outlined", "notched", "pointer", "badge", "inline"].includes($("arrow-style").value) ? $("arrow-style").value : "triangle",
+    arrowCount: clamp(Math.round(Number($("arrow-count").value)) || 3, 1, 20),
+    arrowPlacement: $("arrow-placement").value === "interval" ? "interval" : "count",
+    arrowIntervalMm: clamp(Number($("arrow-interval").value) || 30, 5, 500),
+    arrowSameAsRoute: $("arrow-same-as-route").checked,
+    arrowColor: /^#[0-9a-f]{6}$/i.test($("arrow-color").value) ? $("arrow-color").value : "#111111",
     routeOffsetXMm: clamp(Number($("route-offset-x").value), -500, 500),
     routeOffsetYMm: clamp(Number($("route-offset-y").value), -500, 500),
     elevationThreshold: clamp(Number($("elevation-threshold").value), 0, 50),
@@ -93,6 +102,16 @@ const state = () => {
 };
 
 const routeInk = (s) => s.colorMode === "color" ? s.routeColor : "#111";
+const routeCasingInk = (s) => {
+  if (s.routeCasing === "black") return "#111";
+  if (s.routeCasing === "custom") return s.colorMode === "color" ? s.routeCasingColor : "#fff";
+  return "#fff";
+};
+const arrowInk = (s) => {
+  if (s.arrowStyle === "outlined") return s.colorMode !== "color" || s.arrowSameAsRoute ? "#fff" : s.arrowColor;
+  if (s.colorMode !== "color") return "#111";
+  return s.arrowSameAsRoute ? s.routeColor : s.arrowColor;
+};
 
 function clamp(value, min, max) {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : min;
@@ -769,7 +788,7 @@ async function generateSvg(data, s, renderData = data) {
     ? renderSegments.map((segment) => arrowSvg(segment.map((point) => {
       const [x, y] = xy(point);
       return { x, y };
-    }), s.arrowSizeMm / 25.4 * s.dpi, routeInk(s))).join("")
+    }), s.arrowSizeMm / 25.4 * s.dpi, arrowInk(s), s.arrowStyle, s.arrowCount, s.arrowPlacement === "interval" ? s.arrowIntervalMm / 25.4 * s.dpi : 0)).join("")
     : "";
   const centerLat = all.reduce((sum, point) => sum + point.lat, 0) / all.length;
   const scaleSide = s.showProfile && s.profilePosition.endsWith("left") ? "right" : "left";
@@ -804,6 +823,8 @@ async function generateSvg(data, s, renderData = data) {
     : 'shape-rendering="crispEdges" text-rendering="optimizeSpeed"';
   const color = s.colorMode === "color";
   const ink = routeInk(s);
+  const casing = routeCasingInk(s);
+  const casingPx = casing === "#fff" ? linePx * 2 : linePx * 1.5;
   const baseMapOpacity = { standard: .72, terrain: .65, water: .82 }[s.mapStyle] ?? .72;
   const mapOpacity = s.mapIntensity <= 50
     ? baseMapOpacity * s.mapIntensity / 50
@@ -821,9 +842,9 @@ async function generateSvg(data, s, renderData = data) {
       ${dateTexts}
     </g>
     <g id="route-overlay"><g fill="none" stroke-linecap="round" stroke-linejoin="round">
-      <path d="${paths}" stroke="#fff" stroke-width="${linePx * 2}"/>
+      <path d="${paths}" stroke="${casing}" stroke-width="${casingPx}"/>
       <path d="${paths}" stroke="${ink}" stroke-width="${linePx}"/>
-      ${transportPaths ? `<path d="${transportPaths}" stroke="#fff" stroke-width="${linePx * 2}" stroke-linecap="butt"/>
+      ${transportPaths ? `<path d="${transportPaths}" stroke="${casing}" stroke-width="${casingPx}" stroke-linecap="butt"/>
       <path d="${transportPaths}" stroke="${ink}" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
     </g>
     ${arrows}
@@ -1449,17 +1470,46 @@ async function tileDataUrl(url) {
   }
 }
 
-function arrowSvg(points, size, color = "#111") {
-  if (points.length < 5) return "";
-  const targets = [0.22, 0.48, 0.74];
-  return targets.map((ratio) => {
-    const i = clamp(Math.floor((points.length - 2) * ratio), 1, points.length - 2);
-    const a = points[i - 1], b = points[i + 1];
+function arrowSvg(points, size, color = "#111", style = "triangle", count = 3, intervalPx = 0) {
+  if (points.length < 2) return "";
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+  }
+  const total = cum[cum.length - 1];
+  if (total < size * 4) return "";
+  const at = (distance) => {
+    const d = clamp(distance, 0, total);
+    let i = 1;
+    while (i < cum.length - 1 && cum[i] < d) i++;
+    const len = cum[i] - cum[i - 1];
+    const t = len > 0 ? (d - cum[i - 1]) / len : 0;
+    return {
+      x: points[i - 1].x + (points[i].x - points[i - 1].x) * t,
+      y: points[i - 1].y + (points[i].y - points[i - 1].y) * t
+    };
+  };
+  const s = size;
+  const shapes = {
+    triangle: `<path d="M${-s * .7},${-s * .72} L${s * .65},0 L${-s * .7},${s * .72} Z" fill="${color}" stroke="#fff" stroke-width="${s * .24}" paint-order="stroke"/>`,
+    chevron: [["#fff", s * .56], [color, s * .32]].map(([stroke, width]) =>
+      `<path d="M${-s * .45},${-s * .75} L${s * .45},0 L${-s * .45},${s * .75}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`).join(""),
+    notched: `<path d="M${s * .8},0 L${-s * .65},${-s * .7} L${-s * .3},0 L${-s * .65},${s * .7} Z" fill="${color}" stroke="#fff" stroke-width="${s * .24}" paint-order="stroke" stroke-linejoin="round"/>`,
+    pointer: `<path d="M${s * .75},0 L${-s * .65},${-s * .62} L${-s * .38},0 L${-s * .65},${s * .62} Z" fill="${color}" stroke="#1d2733" stroke-width="${s * .09}" stroke-linejoin="round"/>`,
+    outlined: [["#222", s * .36], [color, s * .2]].map(([stroke, width]) =>
+      `<path d="M${-s * .35},${-s * .55} L${s * .25},0 L${-s * .35},${s * .55}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`).join(""),
+    badge: `<circle r="${s * .95}" fill="${color}" stroke="#fff" stroke-width="${s * .16}"/><path d="M${-s * .3},${-s * .42} L${s * .45},0 L${-s * .3},${s * .42} Z" fill="#fff"/>`,
+    inline: `<rect x="${-s * .55}" y="${-s * .32}" width="${s * 1.1}" height="${s * .64}" rx="${s * .32}" fill="${color}"/><path d="M${-s * .14},${-s * .18} L${s * .12},0 L${-s * .14},${s * .18}" fill="none" stroke="#fff" stroke-width="${s * .1}" stroke-linecap="round" stroke-linejoin="round"/>`
+  };
+  const shape = shapes[style] || shapes.triangle;
+  const n = intervalPx > 0 ? Math.floor(total / intervalPx) : count;
+  const start = (total - (n - 1) * intervalPx) / 2;
+  return Array.from({ length: intervalPx > 0 ? Math.max(n, 1) : count }, (_, k) => {
+    const d = intervalPx > 0 ? (n === 0 ? total / 2 : start + k * intervalPx) : total * (k + 1) / (count + 1);
+    const a = at(d - s * 1.5), b = at(d + s * 1.5);
     const angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
-    const x = points[i].x, y = points[i].y;
-    return `<g transform="translate(${x} ${y}) rotate(${angle})">
-      <path d="M${-size * .7},${-size * .72} L${size * .65},0 L${-size * .7},${size * .72} Z" fill="${color}" stroke="#fff" stroke-width="${size * .24}" paint-order="stroke"/>
-    </g>`;
+    const { x, y } = at(d);
+    return `<g transform="translate(${x} ${y}) rotate(${angle})">${shape}</g>`;
   }).join("");
 }
 
@@ -2471,7 +2521,8 @@ const layoutSettingKeys = [
   "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
   "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
   "routeScale", "mapIntensity", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
-  "mapStyle", "colorMode", "routeColor",
+  "mapStyle", "colorMode", "routeColor", "routeCasing", "routeCasingColor",
+  "arrowStyle", "arrowCount", "arrowPlacement", "arrowIntervalMm", "arrowSameAsRoute", "arrowColor",
   "showProfile", "showProfileElevation", "showEndpointElevation", "showMap", "showArrows", "showWatermark", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
@@ -2486,7 +2537,8 @@ const layoutControlMap = {
   arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
   labelFontSizePt: "label-font-size", markerScale: "marker-scale",
   elevationFontSizePt: "elevation-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
-  mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color",
+  mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color", routeCasing: "route-casing", routeCasingColor: "route-casing-color",
+  arrowStyle: "arrow-style", arrowCount: "arrow-count", arrowPlacement: "arrow-placement", arrowIntervalMm: "arrow-interval", arrowSameAsRoute: "arrow-same-as-route", arrowColor: "arrow-color",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
   showProfileElevation: "show-profile-elevation",
@@ -2545,7 +2597,8 @@ $("settings-file").addEventListener("change", async (event) => {
       arrowSizeMm: "arrow-size",
       infoFontSizePt: "info-font-size", labelFontSizePt: "label-font-size", markerScale: "marker-scale",
       elevationFontSizePt: "elevation-font-size",
-      mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color",
+      mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color", routeCasing: "route-casing", routeCasingColor: "route-casing-color",
+      arrowStyle: "arrow-style", arrowCount: "arrow-count", arrowPlacement: "arrow-placement", arrowIntervalMm: "arrow-interval", arrowSameAsRoute: "arrow-same-as-route", arrowColor: "arrow-color",
       routeScale: "route-scale",
       mapIntensity: "map-intensity",
       routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",

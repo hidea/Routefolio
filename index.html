@@ -159,7 +159,30 @@
           </fieldset>
           <div class="field-grid line-settings-grid">
             <label>Route line mm<input id="route-width" type="number" min="0.2" max="1.5" step="0.05" value="0.5"></label>
+            <label>Route outline<select id="route-casing">
+              <option value="white" selected>White</option>
+              <option value="black">Black</option>
+              <option value="custom">Custom color</option>
+            </select></label>
+            <label>Outline color<input id="route-casing-color" type="color" value="#1d2733"></label>
             <label>Arrow size mm<input id="arrow-size" type="number" min="0.5" max="10" step="0.25" value="2.5"></label>
+            <label>Arrow style<select id="arrow-style">
+              <option value="triangle" selected>Triangle</option>
+              <option value="chevron">Chevron</option>
+              <option value="outlined">Outlined chevron</option>
+              <option value="notched">Notched</option>
+              <option value="pointer">Navigation pointer</option>
+              <option value="badge">Circle badge</option>
+              <option value="inline">On the line</option>
+            </select></label>
+            <label>Arrows per segment<input id="arrow-count" type="number" min="1" max="20" step="1" value="3"></label>
+            <label>Arrow placement<select id="arrow-placement">
+              <option value="count" selected>Per segment count</option>
+              <option value="interval">Fixed interval</option>
+            </select></label>
+            <label>Arrow interval mm<input id="arrow-interval" type="number" min="5" max="500" step="1" value="30"></label>
+            <label class="check"><input id="arrow-same-as-route" type="checkbox" checked>Same as route color</label>
+            <label>Arrow color<input id="arrow-color" type="color" value="#111111"></label>
             <label>Elevation noise threshold m<input id="elevation-threshold" type="number" min="0" max="50" value="0"></label>
           </div>
         </fieldset>
@@ -326,6 +349,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260806-83"></script>
+  <script type="module" src="app.js?v=20260806-86"></script>
 </body>
 </html>
