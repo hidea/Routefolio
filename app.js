@@ -9,8 +9,8 @@ const ids = [
   "section-title", "start-name", "finish-name",
   "width-px", "height-px", "width-mm", "height-mm", "dpi",
   "route-width", "route-casing", "route-casing-color", "profile-width", "profile-box-width", "profile-box-height",
-  "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y",
-  "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size",
+  "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y", "scale-offset-x", "scale-offset-y",
+  "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size", "copyright-font-size",
   "route-scale", "map-intensity", "route-offset-x", "route-offset-y",
   "map-style", "color-mode", "route-color",
   "arrow-style", "arrow-count", "arrow-placement", "arrow-interval", "arrow-same-as-route", "arrow-color",
@@ -57,11 +57,14 @@ const state = () => {
     profileOffsetYMm: clamp(Number($("profile-offset-y").value), -500, 500),
     infoOffsetXMm: clamp(Number($("info-offset-x").value), -500, 500),
     infoOffsetYMm: clamp(Number($("info-offset-y").value), -500, 500),
+    scaleOffsetXMm: clamp(Number($("scale-offset-x").value), -500, 500),
+    scaleOffsetYMm: clamp(Number($("scale-offset-y").value), -500, 500),
     arrowSizeMm: clamp(Number($("arrow-size").value), .5, 10),
     infoFontSizePt: clamp(Number($("info-font-size").value), 4, 144),
     labelFontSizePt: clamp(Number($("label-font-size").value), 4, 144),
     markerScale: clamp(Number($("marker-scale").value), 10, 200),
     elevationFontSizePt: clamp(Number($("elevation-font-size").value), 4, 144),
+    copyrightFontSizePt: clamp(Number($("copyright-font-size").value), 2, 72),
     routeScale: clamp(Number($("route-scale").value), 50, 300),
     mapIntensity: clamp(Number($("map-intensity").value), 0, 100),
     mapStyle: $("map-style").value,
@@ -694,7 +697,7 @@ async function generateSvg(data, s, renderData = data) {
   const labelElevationFontSize = labelFontSize * .65;
   const auxiliaryFontSize = 7 * ptToPx;
   const profileAxisFontSize = auxiliaryFontSize;
-  const attributionFontSize = auxiliaryFontSize * .68;
+  const attributionFontSize = s.copyrightFontSizePt * ptToPx;
   const attributionBottomInset = auxiliaryFontSize * .2;
   const attributionGap = auxiliaryFontSize * .25;
   const linePx = Math.max(1, 12.8 * (w / 2400) * (s.routeWidthMm / .5));
@@ -786,7 +789,9 @@ async function generateSvg(data, s, renderData = data) {
     : "";
   const centerLat = all.reduce((sum, point) => sum + point.lat, 0) / all.length;
   const scaleSide = s.showProfile && s.profilePosition.endsWith("left") ? "right" : "left";
-  const scaleBar = s.showMap ? scaleBarSvg(w, h, margin, scale, centerLat, auxiliaryFontSize, scaleSide) : "";
+  const scaleBar = s.showMap
+    ? scaleBarSvg(w, h, margin, scale, centerLat, auxiliaryFontSize, scaleSide, s.scaleOffsetXMm * pxPerMm, s.scaleOffsetYMm * pxPerMm)
+    : "";
   const attributionOnLeft = scaleSide === "right";
   const attributionX = attributionOnLeft ? margin.left : w - margin.right;
   const attributionAnchor = attributionOnLeft ? "start" : "end";
@@ -847,7 +852,7 @@ async function generateSvg(data, s, renderData = data) {
     </g>
     ${profile}
     ${scaleBar}
-    <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${auxiliaryFontSize * .2}">${esc(background.attribution + (s.showWatermark ? (background.attribution ? ", " : "") + "Made with Routefolio" : ""))}</text>
+    <text x="${attributionX}" y="${h - margin.bottom - attributionBottomInset}" text-anchor="${attributionAnchor}" font-size="${attributionFontSize}" fill="#333" paint-order="stroke" stroke="#fff" stroke-width="${attributionFontSize * .3}">${esc(background.attribution + (s.showWatermark ? (background.attribution ? ", " : "") + "Made with Routefolio" : ""))}</text>
   </g>
 </svg>`;
 }
@@ -861,7 +866,7 @@ function mapFilterDefs(color) {
   return `<filter id="map-gray">${desaturate}${lift(.55, .42)}</filter><filter id="map-terrain">${desaturate}${lift(.82, .12)}</filter>${waterTint}`;
 }
 
-function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left") {
+function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left", offsetX = 0, offsetY = 0) {
   const earthCircumference = 40075016.686;
   const metersPerPixel = earthCircumference * Math.cos(latitude * Math.PI / 180) / projectionScale;
   const targetMeters = metersPerPixel * w * .12;
@@ -870,8 +875,8 @@ function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left")
   const factor = normalized >= 5 ? 5 : normalized >= 2 ? 2 : 1;
   const distanceMeters = factor * magnitude;
   const length = distanceMeters / metersPerPixel;
-  const x = side === "right" ? w - margin.right - length : margin.left;
-  const y = h - margin.bottom - fs * 1.25;
+  const x = (side === "right" ? w - margin.right - length : margin.left) + offsetX;
+  const y = h - margin.bottom - fs * 1.25 + offsetY;
   const segment = length / 2;
   const label = distanceMeters >= 1000
     ? `${Number((distanceMeters / 1000).toPrecision(3))} km`
@@ -2512,8 +2517,8 @@ const layoutSettingKeys = [
   "sizeMode", "width", "height", "widthMm", "heightMm", "dpi",
   "marginMode", "marginAllMm", "marginTopMm", "marginRightMm", "marginBottomMm", "marginLeftMm",
   "routeWidthMm", "profileWidthMm", "profileBoxWidthMm", "profileBoxHeightMm",
-  "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm",
-  "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt",
+  "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm", "scaleOffsetXMm", "scaleOffsetYMm",
+  "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt", "copyrightFontSizePt",
   "routeScale", "mapIntensity", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
   "mapStyle", "colorMode", "routeColor", "routeCasing", "routeCasingColor",
   "arrowStyle", "arrowCount", "arrowPlacement", "arrowIntervalMm", "arrowSameAsRoute", "arrowColor",
@@ -2528,9 +2533,10 @@ const layoutControlMap = {
   profileBoxWidthMm: "profile-box-width", profileBoxHeightMm: "profile-box-height",
   profileOffsetXMm: "profile-offset-x", profileOffsetYMm: "profile-offset-y",
   infoOffsetXMm: "info-offset-x", infoOffsetYMm: "info-offset-y",
+  scaleOffsetXMm: "scale-offset-x", scaleOffsetYMm: "scale-offset-y",
   arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
   labelFontSizePt: "label-font-size", markerScale: "marker-scale",
-  elevationFontSizePt: "elevation-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
+  elevationFontSizePt: "elevation-font-size", copyrightFontSizePt: "copyright-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
   mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color", routeCasing: "route-casing", routeCasingColor: "route-casing-color",
   arrowStyle: "arrow-style", arrowCount: "arrow-count", arrowPlacement: "arrow-placement", arrowIntervalMm: "arrow-interval", arrowSameAsRoute: "arrow-same-as-route", arrowColor: "arrow-color",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
@@ -2588,9 +2594,10 @@ $("settings-file").addEventListener("change", async (event) => {
       profileBoxWidthMm: "profile-box-width", profileBoxHeightMm: "profile-box-height",
       profileOffsetXMm: "profile-offset-x", profileOffsetYMm: "profile-offset-y",
       infoOffsetXMm: "info-offset-x", infoOffsetYMm: "info-offset-y",
+      scaleOffsetXMm: "scale-offset-x", scaleOffsetYMm: "scale-offset-y",
       arrowSizeMm: "arrow-size",
       infoFontSizePt: "info-font-size", labelFontSizePt: "label-font-size", markerScale: "marker-scale",
-      elevationFontSizePt: "elevation-font-size",
+      elevationFontSizePt: "elevation-font-size", copyrightFontSizePt: "copyright-font-size",
       mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color", routeCasing: "route-casing", routeCasingColor: "route-casing-color",
       arrowStyle: "arrow-style", arrowCount: "arrow-count", arrowPlacement: "arrow-placement", arrowIntervalMm: "arrow-interval", arrowSameAsRoute: "arrow-same-as-route", arrowColor: "arrow-color",
       routeScale: "route-scale",

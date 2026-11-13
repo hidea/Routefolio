@@ -193,6 +193,7 @@
             <label>Label size pt<input id="label-font-size" type="number" min="4" max="144" step="0.5" value="10"></label>
             <label>Marker size %<input id="marker-scale" type="number" min="10" max="200" step="5" value="100"></label>
             <label>Elevation label size pt<input id="elevation-font-size" type="number" min="4" max="144" step="0.5" value="7"></label>
+            <label>Copyright font size pt<input id="copyright-font-size" type="number" min="2" max="72" step="0.1" value="4.8"></label>
             <label class="wide">Heading placement
               <select id="meta-position">
                 <option value="top-left">Top left</option>
@@ -234,6 +235,10 @@
             <div class="field-pair wide" role="group" aria-label="Map offset">
               <label>Horizontal offset mm<input id="route-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
               <label>Vertical offset mm<input id="route-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            </div>
+            <div class="field-pair wide" role="group" aria-label="Scale bar offset">
+              <label>Gauge horizontal offset mm<input id="scale-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+              <label>Gauge vertical offset mm<input id="scale-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
             </div>
           </div>
         </fieldset>
