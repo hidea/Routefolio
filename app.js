@@ -41,7 +41,7 @@ const state = () => {
   return {
     sizeMode, width, height, dpi,
     widthMm: width / dpi * 25.4, heightMm: height / dpi * 25.4,
-    sectionTitle: $("section-title").value.trim() || "Route",
+    sectionTitle: $("section-title").value.trim(),
     startName: $("start-name").value.trim(),
     finishName: $("finish-name").value.trim(),
     marginMode, marginAllMm,
@@ -82,8 +82,8 @@ const state = () => {
     showMap: $("show-map").checked,
     showArrows: $("show-arrows").checked,
     showWatermark: $("show-watermark").checked,
-    startLabelPosition: $("start-label-position").value,
-    finishLabelPosition: $("finish-label-position").value,
+    startLabelPosition: $("start-label-position").value || "top",
+    finishLabelPosition: $("finish-label-position").value || "top",
     metaPosition: $("meta-position").value,
     profilePosition: $("profile-position").value,
     showProfile: $("show-profile").checked,
@@ -730,18 +730,12 @@ async function generateSvg(data, s, renderData = data) {
       !isRouteStart && !isRouteFinish ? endpointName : "",
       isRouteFinish ? s.finishName : ""
     ].filter(Boolean))];
-    if (!names.length) {
-      endpoints.forEach(({ role, fileIndex }) => {
-        const baseName = role === "start" ? t("Start") : t("Finish");
-        names.push(`${baseName} ${fileIndex + 1}`);
-      });
-    }
-    if (!names.length) return "";
+
     const position = endpoints[0].role === "start" ? s.startLabelPosition : s.finishLabelPosition;
     const [x, y] = xy(point);
     const radius = Math.max(7, h * .007) * markerScale;
     return `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>
-      ${position === "hidden" ? "" : pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize)}`;
+      ${names.length ? pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize) : ""}`;
   }).join("");
 
   const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
