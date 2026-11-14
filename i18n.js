@@ -97,6 +97,7 @@ const ja = {
   "Label size pt": "ラベルサイズ pt",
   "Marker size %": "マーカーサイズ %",
   "Elevation label size pt": "標高ラベルサイズ pt",
+  "Profile axis label size pt": "標高プロフィール軸ラベルサイズ pt",
   "Copyright font size pt": "Copyrightのフォントサイズ pt",
   "Heading placement": "見出しの配置",
   "Heading horizontal offset mm": "見出しの横オフセット mm",

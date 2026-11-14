@@ -10,7 +10,7 @@ const ids = [
   "width-px", "height-px", "width-mm", "height-mm", "dpi",
   "route-width", "route-casing", "route-casing-color", "profile-width", "profile-box-width", "profile-box-height",
   "profile-offset-x", "profile-offset-y", "info-offset-x", "info-offset-y", "scale-offset-x", "scale-offset-y",
-  "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size", "copyright-font-size",
+  "arrow-size", "info-font-size", "label-font-size", "marker-scale", "elevation-font-size", "profile-axis-font-size", "copyright-font-size",
   "route-scale", "map-intensity", "route-offset-x", "route-offset-y",
   "map-style", "color-mode", "route-color",
   "arrow-style", "arrow-count", "arrow-placement", "arrow-interval", "arrow-same-as-route", "arrow-color",
@@ -64,6 +64,7 @@ const state = () => {
     labelFontSizePt: clamp(Number($("label-font-size").value), 4, 144),
     markerScale: clamp(Number($("marker-scale").value), 10, 200),
     elevationFontSizePt: clamp(Number($("elevation-font-size").value), 4, 144),
+    profileAxisFontSizePt: clamp(Number($("profile-axis-font-size").value), 2, 72),
     copyrightFontSizePt: clamp(Number($("copyright-font-size").value), 2, 72),
     routeScale: clamp(Number($("route-scale").value), 50, 300),
     mapIntensity: clamp(Number($("map-intensity").value), 0, 100),
@@ -696,7 +697,7 @@ async function generateSvg(data, s, renderData = data) {
   const profileLabelFontSize = s.elevationFontSizePt * ptToPx;
   const labelElevationFontSize = labelFontSize * .65;
   const auxiliaryFontSize = 7 * ptToPx;
-  const profileAxisFontSize = auxiliaryFontSize;
+  const profileAxisFontSize = s.profileAxisFontSizePt * ptToPx;
   const attributionFontSize = s.copyrightFontSizePt * ptToPx;
   const attributionBottomInset = auxiliaryFontSize * .2;
   const attributionGap = auxiliaryFontSize * .25;
@@ -779,7 +780,7 @@ async function generateSvg(data, s, renderData = data) {
     : "";
   const japan = layoutPoints.every((p) => p.lat >= 20 && p.lat <= 46 && p.lon >= 122 && p.lon <= 154);
   const background = s.showMap
-    ? await tileBackgroundSvg({ w, h, scale, offsetX, offsetY, minX, maxX, minY, maxY, japan, mapStyle: s.mapStyle })
+    ? await tileBackgroundSvg({ w, h, scale, offsetX, offsetY, minX, maxX, minY, maxY, japan, mapStyle: s.mapStyle, color: s.colorMode === "color" })
     : { svg: "", attribution: "" };
   const arrows = s.showArrows
     ? renderSegments.map((segment) => arrowSvg(segment.map((point) => {
@@ -860,10 +861,11 @@ async function generateSvg(data, s, renderData = data) {
 function mapFilterDefs(color) {
   const desaturate = color ? "" : '<feColorMatrix type="saturate" values="0"/>';
   const lift = (slope, intercept) => `<feComponentTransfer><feFuncR type="linear" slope="${slope}" intercept="${intercept}"/><feFuncG type="linear" slope="${slope}" intercept="${intercept}"/><feFuncB type="linear" slope="${slope}" intercept="${intercept}"/></feComponentTransfer>`;
+  const terrainTone = color ? lift(1.12, -.06) : `${desaturate}${lift(.82, .12)}`;
   const waterTint = color
     ? '<filter id="map-water-tint" color-interpolation-filters="sRGB"><feComponentTransfer><feFuncR type="linear" slope="1.641" intercept="-.641"/><feFuncG type="linear" slope=".982" intercept=".018"/><feFuncB type="linear" slope=".472" intercept=".528"/></feComponentTransfer></filter>'
     : "";
-  return `<filter id="map-gray">${desaturate}${lift(.55, .42)}</filter><filter id="map-terrain">${desaturate}${lift(.82, .12)}</filter>${waterTint}`;
+  return `<filter id="map-gray">${desaturate}${lift(.55, .42)}</filter><filter id="map-terrain">${terrainTone}</filter>${waterTint}`;
 }
 
 function scaleBarSvg(w, h, margin, projectionScale, latitude, fs, side = "left", offsetX = 0, offsetY = 0) {
@@ -975,14 +977,14 @@ function positionedBox(position, w, h, margin, boxW, boxH) {
   return { left, right: left + boxW, top, bottom: top + boxH };
 }
 
-async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyle = "standard" }) {
+async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyle = "standard", color = false }) {
   if (mapStyle === "water" && japan) {
     const vectorBackground = await vectorWaterBackgroundSvg({ w, h, scale, offsetX, offsetY });
     if (vectorBackground) return vectorBackground;
   }
   const terrain = mapStyle === "terrain";
   const minZoom = terrain ? (japan ? 2 : 0) : (japan ? 5 : 1);
-  const maxZoom = terrain ? (japan ? 16 : 17) : (japan ? 18 : 19);
+  const maxZoom = terrain ? (japan ? (color ? 15 : 16) : 15) : (japan ? 18 : 19);
   let zoom = clamp(Math.round(Math.log2(scale / 256)), minZoom, maxZoom);
   const viewMinX = (0 - offsetX) / scale;
   const viewMaxX = (w - offsetX) / scale;
@@ -1002,7 +1004,7 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
     zoom--;
   } while (zoom > minZoom);
   const { count, x0, x1, y0, y1 } = range;
-  const source = terrain ? (japan ? "gsi" : "opentopomap") : (japan ? "gsi" : "osm");
+  const source = terrain ? (japan ? "gsi" : "mapzen") : (japan ? "gsi" : "osm");
   const tiles = [];
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
@@ -1010,23 +1012,27 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
       const wrappedX = ((tx % count) + count) % count;
       const url = terrain
         ? japan
-          ? `https://cyberjapandata.gsi.go.jp/xyz/hillshademap/${zoom}/${wrappedX}/${ty}.png`
-          : `https://a.tile.opentopomap.org/${zoom}/${wrappedX}/${ty}.png`
+          ? `https://cyberjapandata.gsi.go.jp/xyz/${color ? "relief" : "hillshademap"}/${zoom}/${wrappedX}/${ty}.png`
+          : `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${wrappedX}/${ty}.png`
         : japan
           ? `https://cyberjapandata.gsi.go.jp/xyz/pale/${zoom}/${wrappedX}/${ty}.png`
           : `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${ty}.png`;
-      tiles.push({ tx, ty, url });
+      tiles.push({ tx, ty, wrappedX, url });
     }
   }
   const rendered = await Promise.all(tiles.map(async (tile) => {
     try {
       const href = mapStyle === "water"
         ? await binaryWaterTileDataUrl(tile.url)
-        : await tileDataUrl(tile.url);
-      const x = tile.tx / count * scale + offsetX;
-      const y = tile.ty / count * scale + offsetY;
-      const size = scale / count + 1;
-      return `<image href="${href}" x="${x}" y="${y}" width="${size}" height="${size}" preserveAspectRatio="none"/>`;
+        : terrain && !japan
+          ? await terrainHillshadeDataUrl(tile.url, zoom, tile.wrappedX, tile.ty, color)
+          : await tileDataUrl(tile.url);
+      const overlap = terrain && !japan ? 1 : .5;
+      const x = tile.tx / count * scale + offsetX - overlap;
+      const y = tile.ty / count * scale + offsetY - overlap;
+      const size = scale / count + overlap * 2;
+      const imageRendering = terrain && !japan ? ' image-rendering="pixelated"' : "";
+      return `<image href="${href}" x="${x}" y="${y}" width="${size}" height="${size}" preserveAspectRatio="none"${imageRendering}/>`;
     } catch {
       return "";
     }
@@ -1034,8 +1040,8 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
   const loaded = rendered.filter(Boolean);
   const attribution = source === "gsi"
     ? t("Source: GSI Tiles (Geospatial Information Authority of Japan)")
-    : source === "opentopomap"
-      ? "© OpenStreetMap contributors, SRTM | © OpenTopoMap (CC BY-SA)"
+    : source === "mapzen"
+      ? "Terrain: © Mapzen, OpenStreetMap, and others"
       : "© OpenStreetMap contributors";
   if (!loaded.length) {
     return {
@@ -1465,6 +1471,192 @@ async function tileDataUrl(url) {
     return await promise;
   } catch (error) {
     tileCache.delete(url);
+    throw error;
+  }
+}
+
+
+function writeTerrainColor(data, pixel, elevation, lightness) {
+  let lowElevation, highElevation, lowColor, highColor;
+  if (elevation < 0) {
+    lowElevation = -5000;
+    highElevation = 0;
+    lowColor = [45, 95, 150];
+    highColor = [120, 180, 210];
+  } else if (elevation < 500) {
+    lowElevation = 0;
+    highElevation = 500;
+    lowColor = [120, 175, 85];
+    highColor = [190, 170, 80];
+  } else if (elevation < 2000) {
+    lowElevation = 500;
+    highElevation = 2000;
+    lowColor = [190, 170, 80];
+    highColor = [150, 95, 55];
+  } else if (elevation < 4000) {
+    lowElevation = 2000;
+    highElevation = 4000;
+    lowColor = [150, 95, 55];
+    highColor = [210, 200, 185];
+  } else {
+    lowElevation = 4000;
+    highElevation = 8000;
+    lowColor = [215, 210, 200];
+    highColor = [245, 245, 242];
+  }
+  const ratio = clamp((elevation - lowElevation) / (highElevation - lowElevation), 0, 1);
+  for (let channel = 0; channel < 3; channel++) {
+    data[pixel + channel] = Math.round((lowColor[channel] + (highColor[channel] - lowColor[channel]) * ratio) * lightness);
+  }
+}
+
+async function terrainWaterMask(url) {
+  const cacheKey = `terrain-water:${url}`;
+  if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
+  const promise = fetch(url, {
+    credentials: "omit",
+    referrerPolicy: "no-referrer"
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`Water mask tile ${response.status}`);
+    const bitmap = await createImageBitmap(await response.blob());
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let mask = new Uint8Array(canvas.width * canvas.height);
+    for (let index = 0; index < pixels.length; index += 4) {
+      const red = pixels[index];
+      const green = pixels[index + 1];
+      const blue = pixels[index + 2];
+      mask[index / 4] = pixels[index + 3] > 0
+        && blue >= 145
+        && blue > red * 1.035
+        && blue > green * 1.012
+        ? 1
+        : 0;
+    }
+    mask = morphWaterMask(morphWaterMask(mask, canvas.width, canvas.height, 2, true), canvas.width, canvas.height, 2, false);
+    mask = removeSmallWaterComponents(mask, canvas.width, canvas.height, 12);
+    return { width: canvas.width, height: canvas.height, mask };
+  });
+  tileCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    tileCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function terrainElevationTile(url) {
+  const cacheKey = `elevation:${url}`;
+  if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
+  const promise = fetch(url, {
+    credentials: "omit",
+    referrerPolicy: "no-referrer"
+  }).then(async (response) => {
+    if (!response.ok) throw new Error(`Terrain tile ${response.status}`);
+    const bitmap = await createImageBitmap(await response.blob());
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    const source = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const elevations = new Float32Array(canvas.width * canvas.height);
+    for (let index = 0; index < elevations.length; index++) {
+      const pixel = index * 4;
+      elevations[index] = source[pixel] * 256 + source[pixel + 1] + source[pixel + 2] / 256 - 32768;
+    }
+    return { width: canvas.width, height: canvas.height, elevations };
+  });
+  tileCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    tileCache.delete(cacheKey);
+    throw error;
+  }
+}
+
+async function terrainHillshadeDataUrl(url, zoom, tileX, tileY, color = false) {
+  const cacheKey = `hillshade:${color ? "color" : "mono"}:${url}`;
+  if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
+  const promise = (async () => {
+    const count = 2 ** zoom;
+    const tileUrl = (x, y) => `https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${zoom}/${((x % count) + count) % count}/${Math.max(0, Math.min(count - 1, y))}.png`;
+    const [current, northTile, eastTile, southTile, westTile, waterTile] = await Promise.all([
+      terrainElevationTile(url),
+      terrainElevationTile(tileUrl(tileX, tileY - 1)),
+      terrainElevationTile(tileUrl(tileX + 1, tileY)),
+      terrainElevationTile(tileUrl(tileX, tileY + 1)),
+      terrainElevationTile(tileUrl(tileX - 1, tileY)),
+      color
+        ? terrainWaterMask(`https://tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`)
+        : Promise.resolve(null)
+    ]);
+    const { width, height, elevations } = current;
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    const output = context.createImageData(width, height);
+    const tileCenterMercatorY = (tileY + .5) / count;
+    const latitude = Math.atan(Math.sinh(Math.PI * (1 - 2 * tileCenterMercatorY)));
+    const metersPerPixel = 156543.03392804097 * Math.cos(latitude) / count;
+    const lightX = -.5;
+    const lightY = -.5;
+    const lightZ = Math.SQRT1_2;
+    const terrainExaggeration = 2.5;
+    for (let y = 0; y < height; y++) {
+      const row = y * width;
+      for (let x = 0; x < width; x++) {
+        const westElevation = x
+          ? elevations[row + x - 1]
+          : westTile.elevations[row + westTile.width - 1];
+        const eastElevation = x < width - 1
+          ? elevations[row + x + 1]
+          : eastTile.elevations[row];
+        const northElevation = y
+          ? elevations[row - width + x]
+          : northTile.elevations[(northTile.height - 1) * northTile.width + x];
+        const southElevation = y < height - 1
+          ? elevations[row + width + x]
+          : southTile.elevations[x];
+        const dzdx = (eastElevation - westElevation) / (2 * metersPerPixel) * terrainExaggeration;
+        const dzdy = (southElevation - northElevation) / (2 * metersPerPixel) * terrainExaggeration;
+        const normalLength = Math.hypot(dzdx, dzdy, 1);
+        const illumination = Math.max(0, (-dzdx * lightX - dzdy * lightY + lightZ) / normalLength);
+        const shade = Math.round(255 * (.38 + .62 * illumination));
+        const pixel = (row + x) * 4;
+        if (color && waterTile?.mask[row + x]) {
+          const waterLightness = .82 + .12 * illumination;
+          output.data[pixel] = Math.round(65 * waterLightness);
+          output.data[pixel + 1] = Math.round(155 * waterLightness);
+          output.data[pixel + 2] = Math.round(210 * waterLightness);
+        } else if (color) {
+          const lightness = .48 + .6 * illumination;
+          writeTerrainColor(output.data, pixel, elevations[row + x], lightness);
+        } else {
+          output.data[pixel] = shade;
+          output.data[pixel + 1] = shade;
+          output.data[pixel + 2] = shade;
+        }
+        output.data[pixel + 3] = 255;
+      }
+    }
+    context.putImageData(output, 0, 0);
+    return canvas.toDataURL("image/png");
+  })();
+  tileCache.set(cacheKey, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    tileCache.delete(cacheKey);
     throw error;
   }
 }
@@ -2518,7 +2710,7 @@ const layoutSettingKeys = [
   "marginMode", "marginAllMm", "marginTopMm", "marginRightMm", "marginBottomMm", "marginLeftMm",
   "routeWidthMm", "profileWidthMm", "profileBoxWidthMm", "profileBoxHeightMm",
   "profileOffsetXMm", "profileOffsetYMm", "infoOffsetXMm", "infoOffsetYMm", "scaleOffsetXMm", "scaleOffsetYMm",
-  "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt", "copyrightFontSizePt",
+  "arrowSizeMm", "infoFontSizePt", "labelFontSizePt", "markerScale", "elevationFontSizePt", "profileAxisFontSizePt", "copyrightFontSizePt",
   "routeScale", "mapIntensity", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
   "mapStyle", "colorMode", "routeColor", "routeCasing", "routeCasingColor",
   "arrowStyle", "arrowCount", "arrowPlacement", "arrowIntervalMm", "arrowSameAsRoute", "arrowColor",
@@ -2536,7 +2728,7 @@ const layoutControlMap = {
   scaleOffsetXMm: "scale-offset-x", scaleOffsetYMm: "scale-offset-y",
   arrowSizeMm: "arrow-size", infoFontSizePt: "info-font-size",
   labelFontSizePt: "label-font-size", markerScale: "marker-scale",
-  elevationFontSizePt: "elevation-font-size", copyrightFontSizePt: "copyright-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
+  elevationFontSizePt: "elevation-font-size", profileAxisFontSizePt: "profile-axis-font-size", copyrightFontSizePt: "copyright-font-size", routeScale: "route-scale", mapIntensity: "map-intensity",
   mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color", routeCasing: "route-casing", routeCasingColor: "route-casing-color",
   arrowStyle: "arrow-style", arrowCount: "arrow-count", arrowPlacement: "arrow-placement", arrowIntervalMm: "arrow-interval", arrowSameAsRoute: "arrow-same-as-route", arrowColor: "arrow-color",
   routeOffsetXMm: "route-offset-x", routeOffsetYMm: "route-offset-y",
@@ -2597,7 +2789,7 @@ $("settings-file").addEventListener("change", async (event) => {
       scaleOffsetXMm: "scale-offset-x", scaleOffsetYMm: "scale-offset-y",
       arrowSizeMm: "arrow-size",
       infoFontSizePt: "info-font-size", labelFontSizePt: "label-font-size", markerScale: "marker-scale",
-      elevationFontSizePt: "elevation-font-size", copyrightFontSizePt: "copyright-font-size",
+      elevationFontSizePt: "elevation-font-size", profileAxisFontSizePt: "profile-axis-font-size", copyrightFontSizePt: "copyright-font-size",
       mapStyle: "map-style", colorMode: "color-mode", routeColor: "route-color", routeCasing: "route-casing", routeCasingColor: "route-casing-color",
       arrowStyle: "arrow-style", arrowCount: "arrow-count", arrowPlacement: "arrow-placement", arrowIntervalMm: "arrow-interval", arrowSameAsRoute: "arrow-same-as-route", arrowColor: "arrow-color",
       routeScale: "route-scale",

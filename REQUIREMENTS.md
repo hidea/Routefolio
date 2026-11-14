@@ -71,8 +71,8 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - The background map opacity can be adjusted from 0% to 100% for every map style. At the default 50%, standard, terrain-emphasis, and water/land maps use their previous opacities of 72%, 65%, and 82%, respectively; 100% makes the selected map fully opaque.
 - The live preview display scale can be adjusted from 1% to 300% without changing exported image dimensions, and can be fit within the preview area in both dimensions.
 - Fetch a background map around the route from a public map service.
-- If the route is within Japan, use the Geospatial Information Authority of Japan (GSI) map as the background.
-- If the route is outside Japan, use OpenStreetMap as the standard background and OpenTopoMap for terrain emphasis.
+- If the route is within Japan, use GSI hillshade for monochrome terrain emphasis and GSI relief tiles for color terrain emphasis.
+- If the route is outside Japan, use OpenStreetMap as the standard background and label-free hillshade generated from Mapzen Terrain Tiles on AWS for terrain emphasis.
 - Comply with the background map's attribution and terms of use.
 - Save as SVG and PNG.
 - Save and load settings as JSON.
@@ -99,7 +99,7 @@ Generate, in the browser, a monochrome terrain route diagram in the style of a p
 - The background map can be hidden via settings.
 - Routes within Japan use the GSI map.
 - Confirm and implement GSI's image output conditions, usage limits, required attribution, and browser fetch method.
-- Routes outside Japan use OpenStreetMap, or OpenTopoMap when terrain emphasis is selected.
+- Routes outside Japan use OpenStreetMap, or label-free hillshade generated from Mapzen Terrain Tiles on AWS when terrain emphasis is selected.
 - Confirm and implement OpenStreetMap's tile usage terms, required copyright notice, usage limits, and image output method.
 
 ## 9. Acceptance criteria
