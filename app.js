@@ -175,6 +175,7 @@ function addCustomLabel(label) {
           <option value="right">Right</option><option value="bottom-right">Bottom right</option>
           <option value="bottom">Bottom</option><option value="bottom-left">Bottom left</option>
           <option value="left">Left</option><option value="top-left">Top left</option>
+          <option value="hidden">Hidden</option>
         </select>
       </label>
     </div>
@@ -724,7 +725,7 @@ async function generateSvg(data, s, renderData = data) {
     { point: first, endpoints: [{ role: "start", fileIndex: 0 }] },
     { point: last, endpoints: [{ role: "finish", fileIndex: data.fileCount - 1 }] }
   ];
-  const endpointMarkers = endpointGroups.map(({ point, endpoints }) => {
+  const endpointElements = endpointGroups.map(({ point, endpoints }) => {
     const isRouteStart = endpoints.some(({ role, fileIndex }) => role === "start" && fileIndex === 0);
     const isRouteFinish = endpoints.some(({ role, fileIndex }) =>
       role === "finish" && fileIndex === data.fileCount - 1);
@@ -738,20 +739,26 @@ async function generateSvg(data, s, renderData = data) {
     const position = endpoints[0].role === "start" ? s.startLabelPosition : s.finishLabelPosition;
     const [x, y] = xy(point);
     const radius = Math.max(7, h * .007) * markerScale;
-    return `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>
-      ${names.length ? pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize) : ""}`;
-  }).join("");
+    return {
+      marker: `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>`,
+      label: names.length
+        ? pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize)
+        : ""
+    };
+  });
+  const endpointMarkers = endpointElements.map(({ marker }) => marker).join("");
+  const endpointLabels = endpointElements.map(({ label }) => label).join("");
 
-  const customLabelSvg = resolvedCustomLabels.map(({ label, point }) => {
+  const customLabelElements = resolvedCustomLabels.filter(({ label }) => label.position !== "hidden").map(({ label, point }) => {
     const [x, y] = xy(point);
     const markerSize = Math.max(5, h * .005) * markerScale;
-    const endpointStyle = label.markerStyle === "endpoint";
-    const marker = endpointStyle
-      ? `<circle cx="${x}" cy="${y}" r="${Math.max(7, h * .007) * markerScale}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>`
-      : `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>`;
-    return `${marker}
-      ${pointLabel(x, y, label.name, endpointStyle ? point.ele : null, label.position, w, h, labelFontSize, labelElevationFontSize)}`;
-  }).join("");
+    return {
+      marker: `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>`,
+      label: pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, labelElevationFontSize)
+    };
+  });
+  const customLabelMarkers = customLabelElements.map(({ marker }) => marker).join("");
+  const customLabelTexts = customLabelElements.map(({ label }) => label).join("");
 
   const profileMargin = s.profilePosition.startsWith("bottom") && s.showMap
     ? { ...margin, bottom: margin.bottom + attributionFontSize + attributionBottomInset + attributionGap }
@@ -849,7 +856,9 @@ async function generateSvg(data, s, renderData = data) {
     </g>
     ${arrows}
     ${endpointMarkers}
-    ${customLabelSvg}
+    ${customLabelMarkers}
+    ${endpointLabels}
+    ${customLabelTexts}
     </g>
     ${profile}
     ${scaleBar}
@@ -1040,7 +1049,9 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
   const attribution = source === "gsi"
     ? t("Source: GSI Tiles (Geospatial Information Authority of Japan)")
     : source === "mapzen"
-      ? "Terrain: © Mapzen, OpenStreetMap, and others"
+      ? color
+        ? "Terrain: © Mapzen / Water: © OpenFreeMap, © OpenMapTiles, © OpenStreetMap contributors"
+        : "Terrain: © Mapzen, OpenStreetMap, and others"
       : "© OpenStreetMap contributors";
   if (!loaded.length) {
     return {
@@ -1581,12 +1592,106 @@ async function terrainElevationTile(url) {
   }
 }
 
-async function terrainWaterMask2x(zoom, tileX, tileY) {
+let openFreeMapTileTemplatePromise;
+
+async function openFreeMapTileTemplate() {
+  if (!openFreeMapTileTemplatePromise) {
+    openFreeMapTileTemplatePromise = fetch("https://tiles.openfreemap.org/planet", {
+      credentials: "omit"
+    }).then(async (response) => {
+      if (!response.ok) throw new Error(`OpenFreeMap TileJSON ${response.status}`);
+      const tileJson = await response.json();
+      if (!tileJson.tiles?.[0]) throw new Error("OpenFreeMap TileJSON has no tile URL");
+      return tileJson.tiles[0];
+    }).catch((error) => {
+      openFreeMapTileTemplatePromise = null;
+      throw error;
+    });
+  }
+  return openFreeMapTileTemplatePromise;
+}
+
+async function terrainVectorWaterMask(zoom, tileX, tileY) {
   const size = 512;
-  const half = size / 2;
+  const sourceZoom = Math.min(zoom, 14);
+  const overzoom = 2 ** (zoom - sourceZoom);
+  const sourceCount = 2 ** sourceZoom;
+  const sourceX = Math.floor(tileX / overzoom);
+  const sourceY = Math.floor(tileY / overzoom);
+  const subX = ((tileX % overzoom) + overzoom) % overzoom;
+  const subY = ((tileY % overzoom) + overzoom) % overzoom;
+  const template = await openFreeMapTileTemplate();
+  const url = template
+    .replace("{z}", sourceZoom)
+    .replace("{x}", ((sourceX % sourceCount) + sourceCount) % sourceCount)
+    .replace("{y}", Math.max(0, Math.min(sourceCount - 1, sourceY)));
+  const vectorTile = await vectorTileData(url);
+  const layer = vectorTile.layers.water;
   const mask = new Uint8Array(size * size);
-  const osmUrl = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
-  if (zoom + 1 > 19) {
+  if (!layer) return { width: size, height: size, mask };
+
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.fillStyle = "#fff";
+  for (let index = 0; index < layer.length; index++) {
+    const feature = layer.feature(index);
+    if (feature.type !== 3 || feature.properties.brunnel === "tunnel") continue;
+    const scale = size * overzoom / feature.extent;
+    context.beginPath();
+    for (const ring of feature.loadGeometry()) {
+      if (ring.length < 3) continue;
+      for (let pointIndex = 0; pointIndex < ring.length; pointIndex++) {
+        const point = ring[pointIndex];
+        const x = point.x * scale - subX * size;
+        const y = point.y * scale - subY * size;
+        if (pointIndex) context.lineTo(x, y);
+        else context.moveTo(x, y);
+      }
+      context.closePath();
+    }
+    context.fill("evenodd");
+  }
+  const pixels = context.getImageData(0, 0, size, size).data;
+  for (let index = 3; index < pixels.length; index += 4) {
+    mask[(index - 3) / 4] = pixels[index] ? 1 : 0;
+  }
+  return { width: size, height: size, mask };
+}
+
+async function terrainWaterMask2x(zoom, tileX, tileY) {
+  try {
+    return await terrainVectorWaterMask(zoom, tileX, tileY);
+  } catch {
+    const size = 512;
+    const half = size / 2;
+    const mask = new Uint8Array(size * size);
+    const osmUrl = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+    const subCount = 2 ** (zoom + 1);
+    const subTiles = await Promise.all([[0, 0], [1, 0], [0, 1], [1, 1]].map(async ([dx, dy]) => {
+      if (zoom + 1 > 19) return null;
+      return terrainWaterMask(osmUrl(
+        zoom + 1,
+        ((2 * tileX + dx) % subCount + subCount) % subCount,
+        2 * tileY + dy
+      )).catch(() => null);
+    }));
+    if (subTiles.some(Boolean)) {
+      for (let index = 0; index < subTiles.length; index++) {
+        const sub = subTiles[index];
+        if (!sub) continue;
+        const dx = index % 2;
+        const dy = Math.floor(index / 2);
+        const rows = Math.min(sub.height, half);
+        const columns = Math.min(sub.width, half);
+        for (let y = 0; y < rows; y++) {
+          const target = (dy * half + y) * size + dx * half;
+          mask.set(sub.mask.subarray(y * sub.width, y * sub.width + columns), target);
+        }
+      }
+      return { width: size, height: size, mask };
+    }
     const water = await terrainWaterMask(osmUrl(zoom, tileX, tileY)).catch(() => null);
     if (!water) return { width: size, height: size, mask };
     for (let y = 0; y < size; y++) {
@@ -1597,18 +1702,6 @@ async function terrainWaterMask2x(zoom, tileX, tileY) {
     }
     return { width: size, height: size, mask };
   }
-  const subCount = 2 ** (zoom + 1);
-  await Promise.all([[0, 0], [1, 0], [0, 1], [1, 1]].map(async ([dx, dy]) => {
-    const sub = await terrainWaterMask(osmUrl(zoom + 1, (2 * tileX + dx) % subCount, 2 * tileY + dy)).catch(() => null);
-    if (!sub) return;
-    const rows = Math.min(sub.height, half);
-    const columns = Math.min(sub.width, half);
-    for (let y = 0; y < rows; y++) {
-      const target = (dy * half + y) * size + dx * half;
-      mask.set(sub.mask.subarray(y * sub.width, y * sub.width + columns), target);
-    }
-  }));
-  return { width: size, height: size, mask };
 }
 
 async function terrainHillshadeDataUrl(url, zoom, tileX, tileY, color = false) {
@@ -1967,8 +2060,7 @@ async function updateEndpointNames(sourceData) {
       lat: point.lat,
       lon: point.lon,
       position: endpoints[0].role === "start" ? "top" : "bottom",
-      showOnProfile: false,
-      markerStyle: "endpoint"
+      showOnProfile: false
     });
   });
   if (endpointGroups.length > 2
