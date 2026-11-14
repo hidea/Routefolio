@@ -1031,8 +1031,7 @@ async function tileBackgroundSvg({ w, h, scale, offsetX, offsetY, japan, mapStyl
       const x = tile.tx / count * scale + offsetX - overlap;
       const y = tile.ty / count * scale + offsetY - overlap;
       const size = scale / count + overlap * 2;
-      const imageRendering = terrain && !japan ? ' image-rendering="pixelated"' : "";
-      return `<image href="${href}" x="${x}" y="${y}" width="${size}" height="${size}" preserveAspectRatio="none"${imageRendering}/>`;
+      return `<image href="${href}" x="${x}" y="${y}" width="${size}" height="${size}" preserveAspectRatio="none"/>`;
     } catch {
       return "";
     }
@@ -1514,8 +1513,7 @@ async function terrainWaterMask(url) {
   const cacheKey = `terrain-water:${url}`;
   if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
   const promise = fetch(url, {
-    credentials: "omit",
-    referrerPolicy: "no-referrer"
+    credentials: "omit"
   }).then(async (response) => {
     if (!response.ok) throw new Error(`Water mask tile ${response.status}`);
     const bitmap = await createImageBitmap(await response.blob());
@@ -1583,8 +1581,38 @@ async function terrainElevationTile(url) {
   }
 }
 
+async function terrainWaterMask2x(zoom, tileX, tileY) {
+  const size = 512;
+  const half = size / 2;
+  const mask = new Uint8Array(size * size);
+  const osmUrl = (z, x, y) => `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+  if (zoom + 1 > 19) {
+    const water = await terrainWaterMask(osmUrl(zoom, tileX, tileY)).catch(() => null);
+    if (!water) return { width: size, height: size, mask };
+    for (let y = 0; y < size; y++) {
+      const sourceRow = Math.min(water.height - 1, y >> 1) * water.width;
+      for (let x = 0; x < size; x++) {
+        mask[y * size + x] = water.mask[sourceRow + Math.min(water.width - 1, x >> 1)];
+      }
+    }
+    return { width: size, height: size, mask };
+  }
+  const subCount = 2 ** (zoom + 1);
+  await Promise.all([[0, 0], [1, 0], [0, 1], [1, 1]].map(async ([dx, dy]) => {
+    const sub = await terrainWaterMask(osmUrl(zoom + 1, (2 * tileX + dx) % subCount, 2 * tileY + dy)).catch(() => null);
+    if (!sub) return;
+    const rows = Math.min(sub.height, half);
+    const columns = Math.min(sub.width, half);
+    for (let y = 0; y < rows; y++) {
+      const target = (dy * half + y) * size + dx * half;
+      mask.set(sub.mask.subarray(y * sub.width, y * sub.width + columns), target);
+    }
+  }));
+  return { width: size, height: size, mask };
+}
+
 async function terrainHillshadeDataUrl(url, zoom, tileX, tileY, color = false) {
-  const cacheKey = `hillshade:${color ? "color" : "mono"}:${url}`;
+  const cacheKey = `hillshade:2x2:${color ? "color" : "mono"}:${url}`;
   if (tileCache.has(cacheKey)) return tileCache.get(cacheKey);
   const promise = (async () => {
     const count = 2 ** zoom;
@@ -1596,15 +1624,18 @@ async function terrainHillshadeDataUrl(url, zoom, tileX, tileY, color = false) {
       terrainElevationTile(tileUrl(tileX, tileY + 1)),
       terrainElevationTile(tileUrl(tileX - 1, tileY)),
       color
-        ? terrainWaterMask(`https://tile.openstreetmap.org/${zoom}/${tileX}/${tileY}.png`)
+        ? terrainWaterMask2x(zoom, tileX, tileY).catch(() => null)
         : Promise.resolve(null)
     ]);
     const { width, height, elevations } = current;
+    const scaleFactor = 2;
+    const outWidth = width * scaleFactor;
+    const outHeight = height * scaleFactor;
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = outWidth;
+    canvas.height = outHeight;
     const context = canvas.getContext("2d");
-    const output = context.createImageData(width, height);
+    const output = context.createImageData(outWidth, outHeight);
     const tileCenterMercatorY = (tileY + .5) / count;
     const latitude = Math.atan(Math.sinh(Math.PI * (1 - 2 * tileCenterMercatorY)));
     const metersPerPixel = 156543.03392804097 * Math.cos(latitude) / count;
@@ -1612,35 +1643,73 @@ async function terrainHillshadeDataUrl(url, zoom, tileX, tileY, color = false) {
     const lightY = -.5;
     const lightZ = Math.SQRT1_2;
     const terrainExaggeration = 2.5;
+    const extWidth = width + 2;
+    const extHeight = height + 2;
+    const extended = new Float32Array(extWidth * extHeight);
     for (let y = 0; y < height; y++) {
       const row = y * width;
-      for (let x = 0; x < width; x++) {
-        const westElevation = x
-          ? elevations[row + x - 1]
-          : westTile.elevations[row + westTile.width - 1];
-        const eastElevation = x < width - 1
-          ? elevations[row + x + 1]
-          : eastTile.elevations[row];
-        const northElevation = y
-          ? elevations[row - width + x]
-          : northTile.elevations[(northTile.height - 1) * northTile.width + x];
-        const southElevation = y < height - 1
-          ? elevations[row + width + x]
-          : southTile.elevations[x];
-        const dzdx = (eastElevation - westElevation) / (2 * metersPerPixel) * terrainExaggeration;
-        const dzdy = (southElevation - northElevation) / (2 * metersPerPixel) * terrainExaggeration;
+      const extRow = (y + 1) * extWidth;
+      extended[extRow] = westTile.elevations[y * westTile.width + westTile.width - 1];
+      extended.set(elevations.subarray(row, row + width), extRow + 1);
+      extended[extRow + width + 1] = eastTile.elevations[y * eastTile.width];
+    }
+    for (let x = 0; x < width; x++) {
+      extended[x + 1] = northTile.elevations[(northTile.height - 1) * northTile.width + x];
+      extended[(extHeight - 1) * extWidth + x + 1] = southTile.elevations[x];
+    }
+    const lastExtRow = (extHeight - 1) * extWidth;
+    extended[0] = (northTile.elevations[(northTile.height - 1) * northTile.width] + westTile.elevations[westTile.width - 1]) / 2;
+    extended[extWidth - 1] = (northTile.elevations[northTile.height * northTile.width - 1] + eastTile.elevations[0]) / 2;
+    extended[lastExtRow] = (southTile.elevations[0] + westTile.elevations[(westTile.height - 1) * westTile.width + westTile.width - 1]) / 2;
+    extended[lastExtRow + extWidth - 1] = (southTile.elevations[southTile.width - 1] + eastTile.elevations[(eastTile.height - 1) * eastTile.width]) / 2;
+    const gradientX = new Float32Array(extWidth * extHeight);
+    const gradientY = new Float32Array(extWidth * extHeight);
+    for (let y = 0; y < extHeight; y++) {
+      const northRow = Math.max(0, y - 1) * extWidth;
+      const southRow = Math.min(extHeight - 1, y + 1) * extWidth;
+      const yStep = Math.min(extHeight - 1, y + 1) - Math.max(0, y - 1);
+      for (let x = 0; x < extWidth; x++) {
+        const westX = Math.max(0, x - 1);
+        const eastX = Math.min(extWidth - 1, x + 1);
+        const index = y * extWidth + x;
+        gradientX[index] = (extended[y * extWidth + eastX] - extended[y * extWidth + westX]) / ((eastX - westX) * metersPerPixel) * terrainExaggeration;
+        gradientY[index] = (extended[southRow + x] - extended[northRow + x]) / (yStep * metersPerPixel) * terrainExaggeration;
+      }
+    }
+    const waterWidth = waterTile?.width || outWidth;
+    for (let outY = 0; outY < outHeight; outY++) {
+      const sourceY = (outY + .5) / scaleFactor - .5;
+      const y0 = Math.floor(sourceY);
+      const fy = sourceY - y0;
+      const row0 = (y0 + 1) * extWidth + 1;
+      const row1 = row0 + extWidth;
+      for (let outX = 0; outX < outWidth; outX++) {
+        const sourceX = (outX + .5) / scaleFactor - .5;
+        const x0 = Math.floor(sourceX);
+        const fx = sourceX - x0;
+        const i00 = row0 + x0;
+        const i10 = i00 + 1;
+        const i01 = row1 + x0;
+        const i11 = i01 + 1;
+        const w00 = (1 - fx) * (1 - fy);
+        const w10 = fx * (1 - fy);
+        const w01 = (1 - fx) * fy;
+        const w11 = fx * fy;
+        const elevation = extended[i00] * w00 + extended[i10] * w10 + extended[i01] * w01 + extended[i11] * w11;
+        const dzdx = gradientX[i00] * w00 + gradientX[i10] * w10 + gradientX[i01] * w01 + gradientX[i11] * w11;
+        const dzdy = gradientY[i00] * w00 + gradientY[i10] * w10 + gradientY[i01] * w01 + gradientY[i11] * w11;
         const normalLength = Math.hypot(dzdx, dzdy, 1);
         const illumination = Math.max(0, (-dzdx * lightX - dzdy * lightY + lightZ) / normalLength);
         const shade = Math.round(255 * (.38 + .62 * illumination));
-        const pixel = (row + x) * 4;
-        if (color && waterTile?.mask[row + x]) {
+        const pixel = (outY * outWidth + outX) * 4;
+        if (color && waterTile?.mask[outY * waterWidth + outX]) {
           const waterLightness = .82 + .12 * illumination;
           output.data[pixel] = Math.round(65 * waterLightness);
           output.data[pixel + 1] = Math.round(155 * waterLightness);
           output.data[pixel + 2] = Math.round(210 * waterLightness);
         } else if (color) {
           const lightness = .48 + .6 * illumination;
-          writeTerrainColor(output.data, pixel, elevations[row + x], lightness);
+          writeTerrainColor(output.data, pixel, elevation, lightness);
         } else {
           output.data[pixel] = shade;
           output.data[pixel + 1] = shade;
