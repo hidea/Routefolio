@@ -4,6 +4,7 @@ node_modules/
 dist/
 .agents/
 .claude/
+.serena/project.yml
 
 # macOS
 .DS_Store
