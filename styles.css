@@ -71,7 +71,9 @@
 .add-label-button {
   @apply mt-2 grid min-h-10 w-full cursor-pointer place-items-center rounded-none border border-ink bg-ink px-2.5 py-2 text-[.76rem] text-white;
 }
-.custom-label-row { @apply mt-2 grid gap-2 border-t border-line py-2; }
+.custom-label-row { @apply mt-2 border-t border-line py-2; }
+.custom-label-summary { @apply cursor-pointer truncate text-[.76rem] font-semibold; }
+.custom-label-body { @apply mt-2 grid gap-2; }
 .custom-label-row .remove-label { @apply min-h-0 justify-self-end border-0 border-b border-current bg-transparent px-0 py-1 text-[.72rem] text-[#7b2820]; }
 .file-drop {
   @apply min-h-[68px] cursor-pointer place-content-center rounded-sm border border-dashed border-[#8c897f] bg-control p-2.5 text-center text-ink;

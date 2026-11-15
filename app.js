@@ -16,6 +16,7 @@ const ids = [
   "arrow-style", "arrow-count", "arrow-placement", "arrow-interval", "arrow-same-as-route", "arrow-color",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-endpoint-elevation", "show-datetime",
   "show-map", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
+  "start-label-offset-x", "start-label-offset-y", "finish-label-offset-x", "finish-label-offset-y",
   "meta-position", "profile-position"
 ];
 
@@ -88,6 +89,10 @@ const state = () => {
     showWatermark: $("show-watermark").checked,
     startLabelPosition: $("start-label-position").value || "top",
     finishLabelPosition: $("finish-label-position").value || "top",
+    startLabelOffsetXMm: clamp(Number($("start-label-offset-x").value), -500, 500),
+    startLabelOffsetYMm: clamp(Number($("start-label-offset-y").value), -500, 500),
+    finishLabelOffsetXMm: clamp(Number($("finish-label-offset-x").value), -500, 500),
+    finishLabelOffsetYMm: clamp(Number($("finish-label-offset-y").value), -500, 500),
     metaPosition: $("meta-position").value,
     profilePosition: $("profile-position").value,
     showProfile: $("show-profile").checked,
@@ -141,6 +146,8 @@ function readCustomLabels() {
     lat: row.querySelector(".custom-lat").value,
     lon: row.querySelector(".custom-lon").value,
     position: row.querySelector(".custom-position").value,
+    offsetXMm: clamp(Number(row.querySelector(".custom-offset-x").value) || 0, -500, 500),
+    offsetYMm: clamp(Number(row.querySelector(".custom-offset-y").value) || 0, -500, 500),
     showOnProfile: row.querySelector(".custom-show-profile").checked,
     markerStyle: row.dataset.markerStyle || "default"
   })).filter((label) => label.name);
@@ -156,10 +163,13 @@ function updateCustomLabelFields(row) {
 function addCustomLabel(label) {
   const isNewLabel = label === undefined;
   label ||= {};
-  const row = document.createElement("div");
+  const row = document.createElement("details");
   row.className = "custom-label-row";
+  row.open = isNewLabel;
   row.dataset.markerStyle = label.markerStyle || "default";
   row.innerHTML = `
+    <summary class="custom-label-summary"><span class="custom-label-title"></span></summary>
+    <div class="custom-label-body">
     <div class="field-grid">
       <label class="wide">Name<input class="custom-name" type="text" placeholder="e.g. Pass, CP1"></label>
       <label>Specify by
@@ -185,10 +195,22 @@ function addCustomLabel(label) {
       <label>Latitude<input class="custom-lat" type="number" min="-90" max="90" step="0.000001"></label>
       <label>Longitude<input class="custom-lon" type="number" min="-180" max="180" step="0.000001"></label>
     </div>
+    <div class="field-grid">
+      <label>Horizontal offset mm<input class="custom-offset-x" type="number" min="-500" max="500" step="0.5"></label>
+      <label>Vertical offset mm<input class="custom-offset-y" type="number" min="-500" max="500" step="0.5"></label>
+    </div>
     <label class="check"><input class="custom-show-profile" type="checkbox"> Show on elevation profile</label>
-    <button class="remove-label" type="button">Remove this label</button>`;
+    <button class="remove-label" type="button">Remove this label</button>
+    </div>`;
   translateElement(row);
-  row.querySelector(".custom-name").value = label.name || "";
+  const nameInput = row.querySelector(".custom-name");
+  const titleElement = row.querySelector(".custom-label-title");
+  const updateTitle = () => { titleElement.textContent = nameInput.value.trim() || t("Untitled label"); };
+  nameInput.value = label.name || "";
+  updateTitle();
+  nameInput.addEventListener("input", updateTitle);
+  row.querySelector(".custom-offset-x").value = label.offsetXMm ?? 0;
+  row.querySelector(".custom-offset-y").value = label.offsetYMm ?? 0;
   row.querySelector(".custom-mode").value = label.mode || "distance";
   row.querySelector(".custom-distance").value = label.distance ?? "";
   const labelTimeZone = resolveTimeZone(
@@ -736,13 +758,16 @@ async function generateSvg(data, s, renderData = data) {
       isRouteFinish ? s.finishName : ""
     ].filter(Boolean))];
 
-    const position = endpoints[0].role === "start" ? s.startLabelPosition : s.finishLabelPosition;
+    const isStartRole = endpoints[0].role === "start";
+    const position = isStartRole ? s.startLabelPosition : s.finishLabelPosition;
+    const labelOffsetX = (isStartRole ? s.startLabelOffsetXMm : s.finishLabelOffsetXMm) * pxPerMm;
+    const labelOffsetY = (isStartRole ? s.startLabelOffsetYMm : s.finishLabelOffsetYMm) * pxPerMm;
     const [x, y] = xy(point);
     const radius = Math.max(7, h * .007) * markerScale;
     return {
       marker: `<circle cx="${x}" cy="${y}" r="${radius}" fill="#fff" stroke="#111" stroke-width="${Math.max(2, linePx * .45)}"/>`,
       label: names.length
-        ? pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize)
+        ? pointLabel(x, y, names.join(" / "), s.showEndpointElevation ? point.ele : null, position, w, h, endpointFontSize, labelElevationFontSize, labelOffsetX, labelOffsetY)
         : ""
     };
   });
@@ -754,7 +779,7 @@ async function generateSvg(data, s, renderData = data) {
     const markerSize = Math.max(5, h * .005) * markerScale;
     return {
       marker: `<rect x="${x - markerSize}" y="${y - markerSize}" width="${markerSize * 2}" height="${markerSize * 2}" transform="rotate(45 ${x} ${y})" fill="#111" stroke="#fff" stroke-width="${Math.max(1, markerSize * .25)}"/>`,
-      label: pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, labelElevationFontSize)
+      label: pointLabel(x, y, label.name, null, label.position, w, h, labelFontSize, labelElevationFontSize, (label.offsetXMm || 0) * pxPerMm, (label.offsetYMm || 0) * pxPerMm)
     };
   });
   const customLabelMarkers = customLabelElements.map(({ marker }) => marker).join("");
@@ -1866,7 +1891,7 @@ function arrowSvg(points, size, color = "#111", style = "triangle", count = 3, i
   }).join("");
 }
 
-function pointLabel(x, y, name, ele, position, w, h, fs, elevationFs) {
+function pointLabel(x, y, name, ele, position, w, h, fs, elevationFs, offsetX = 0, offsetY = 0) {
   const left = position === "left" || position.endsWith("-left");
   const right = position === "right" || position.endsWith("-right");
   const top = position === "top" || position.startsWith("top-");
@@ -1882,8 +1907,8 @@ function pointLabel(x, y, name, ele, position, w, h, fs, elevationFs) {
     : position === "left" || position === "right" ? fs * .35
     : 0;
   const dy = (top || bottom) ? verticalOffset * diagonalScale : verticalOffset;
-  const safeX = clamp(x + dx, w * .04, w * .96);
-  const safeY = clamp(y + dy, h * .08, h * .91);
+  const safeX = clamp(x + dx + offsetX, w * .04, w * .96);
+  const safeY = clamp(y + dy + offsetY, h * .08, h * .91);
   return `<g font-family='"Hiragino Sans","Yu Gothic",sans-serif' text-anchor="${anchor}">
     <text x="${safeX}" y="${safeY}" font-size="${fs}" font-weight="600" paint-order="stroke" stroke="#fff" stroke-width="${fs * .28}">${esc(name)}</text>
     ${elevation ? `<text x="${safeX}" y="${safeY + elevationFs * 1.25}" font-size="${elevationFs}" fill="#555" paint-order="stroke" stroke="#fff" stroke-width="${elevationFs * .3}">${elevation}</text>` : ""}
@@ -2962,6 +2987,8 @@ $("settings-file").addEventListener("change", async (event) => {
       showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
       antialias: "antialias", previewScale: "preview-scale",
       startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
+      startLabelOffsetXMm: "start-label-offset-x", startLabelOffsetYMm: "start-label-offset-y",
+      finishLabelOffsetXMm: "finish-label-offset-x", finishLabelOffsetYMm: "finish-label-offset-y",
       metaPosition: "meta-position", profilePosition: "profile-position",
       clipMode: "clip-mode", clipDistanceStart: "clip-distance-start",
       clipDistanceEnd: "clip-distance-end", clipTimeStart: "clip-time-start", clipTimeEnd: "clip-time-end"

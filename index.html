@@ -76,7 +76,6 @@
         <div class="field-grid">
           <label class="wide">Heading<input id="section-title" value="Section 4: Crossing the Mountains"></label>
           <label>Start-point name<input id="start-name" value="Start"></label>
-          <label>Finish-point name<input id="finish-name" value="Finish"></label>
           <label>Start-name direction
             <select id="start-label-position">
               <option value="top">Top</option>
@@ -89,6 +88,9 @@
               <option value="top-left">Top left</option>
             </select>
           </label>
+          <label>Horizontal offset mm<input id="start-label-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          <label>Vertical offset mm<input id="start-label-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          <label>Finish-point name<input id="finish-name" value="Finish"></label>
           <label>Finish-name direction
             <select id="finish-label-position">
               <option value="top">Top</option>
@@ -101,6 +103,8 @@
               <option value="top-left">Top left</option>
             </select>
           </label>
+          <label>Horizontal offset mm<input id="finish-label-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          <label>Vertical offset mm<input id="finish-label-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
         </div>
         <div class="custom-labels-heading">
           <h3>Additional labels</h3>
@@ -355,6 +359,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260806-88"></script>
+  <script type="module" src="app.js?v=20260806-89"></script>
 </body>
 </html>

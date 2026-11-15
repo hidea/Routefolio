@@ -111,6 +111,7 @@ const ja = {
   "Background map opacity %": "背景地図の不透明度 %",
   "Horizontal offset mm": "横オフセット mm",
   "Vertical offset mm": "縦オフセット mm",
+  "Untitled label": "名前なし",
   "Scale bar offset": "ゲージのオフセット",
   "Gauge horizontal offset mm": "ゲージの横オフセット mm",
   "Gauge vertical offset mm": "ゲージの縦オフセット mm",
