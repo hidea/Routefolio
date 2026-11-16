@@ -15,7 +15,7 @@ const ids = [
   "map-style", "color-mode", "route-color",
   "arrow-style", "arrow-count", "arrow-placement", "arrow-interval", "arrow-same-as-route", "arrow-color",
   "elevation-threshold", "time-zone", "show-profile", "show-profile-elevation", "show-endpoint-elevation", "show-datetime",
-  "show-map", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
+  "show-map", "show-route", "show-arrows", "show-watermark", "antialias", "start-label-position", "finish-label-position",
   "start-label-offset-x", "start-label-offset-y", "finish-label-offset-x", "finish-label-offset-y",
   "meta-position", "profile-position"
 ];
@@ -85,6 +85,7 @@ const state = () => {
     elevationThreshold: clamp(Number($("elevation-threshold").value), 0, 50),
     timeZone: $("time-zone").value.trim() || "auto",
     showMap: $("show-map").checked,
+    showRoute: $("show-route").checked,
     showArrows: $("show-arrows").checked,
     showWatermark: $("show-watermark").checked,
     startLabelPosition: $("start-label-position").value || "top",
@@ -814,7 +815,7 @@ async function generateSvg(data, s, renderData = data) {
   const background = s.showMap
     ? await tileBackgroundSvg({ w, h, scale, offsetX, offsetY, minX, maxX, minY, maxY, japan, mapStyle: s.mapStyle, color: s.colorMode === "color" })
     : { svg: "", attribution: "" };
-  const arrows = s.showArrows
+  const arrows = s.showRoute && s.showArrows
     ? renderSegments.map((segment) => arrowSvg(segment.map((point) => {
       const [x, y] = xy(point);
       return { x, y };
@@ -838,16 +839,17 @@ async function generateSvg(data, s, renderData = data) {
   } else if (s.showDatetime && data.endTime) {
     dateLines.push(`${t("Finish")} ${formatGpxTime(data.endTime, endTimeZone)}`);
   }
-  const info = infoBlockPosition(s.metaPosition, w, h, margin, infoFs, 1 + dateLines.length);
+  const metricLineCount = s.showRoute ? 1 : 0;
+  const info = infoBlockPosition(s.metaPosition, w, h, margin, infoFs, metricLineCount + dateLines.length);
   info.x += s.infoOffsetXMm * pxPerMm;
   info.titleY += s.infoOffsetYMm * pxPerMm;
   info.metaY += s.infoOffsetYMm * pxPerMm;
   const distanceValue = (data.totalDistance / 1000).toFixed(1);
-  const metricText = `<text x="${info.x}" y="${info.metaY}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .18}">
+  const metricText = !s.showRoute ? "" : `<text x="${info.x}" y="${info.metaY}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .18}">
     ${esc(t("Distance"))} <tspan font-size="${infoFs * .66}" font-weight="800">${distanceValue}</tspan> <tspan>km</tspan>${ascentM === null ? "" : `  ${esc(t("Elevation gain"))} <tspan font-size="${infoFs * .66}" font-weight="800">${ascentM.toLocaleString("ja-JP")}</tspan> <tspan>m</tspan>`}
   </text>`;
   const dateTexts = dateLines.map((line, index) =>
-    `<text x="${info.x}" y="${info.metaY + (index + 1) * infoFs * .78}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .16}">${esc(line)}</text>`
+    `<text x="${info.x}" y="${info.metaY + (index + metricLineCount) * infoFs * .78}" font-size="${infoFs * .42}" font-weight="700" stroke-width="${infoFs * .16}">${esc(line)}</text>`
   ).join("");
 
   const renderingHints = s.antialias
@@ -873,12 +875,12 @@ async function generateSvg(data, s, renderData = data) {
       ${metricText}
       ${dateTexts}
     </g>
-    <g id="route-overlay"><g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <g id="route-overlay">${s.showRoute ? `<g fill="none" stroke-linecap="round" stroke-linejoin="round">
       <path d="${paths}" stroke="${casing}" stroke-width="${casingPx}"/>
       <path d="${paths}" stroke="${ink}" stroke-width="${linePx}"/>
       ${transportPaths ? `<path d="${transportPaths}" stroke="${casing}" stroke-width="${casingPx}" stroke-linecap="butt"/>
       <path d="${transportPaths}" stroke="${ink}" stroke-width="${linePx}" stroke-linecap="butt" stroke-dasharray="${linePx} ${linePx * .73}"/>` : ""}
-    </g>
+    </g>` : ""}
     ${arrows}
     ${endpointMarkers}
     ${customLabelMarkers}
@@ -2900,7 +2902,7 @@ const layoutSettingKeys = [
   "routeScale", "mapIntensity", "routeOffsetXMm", "routeOffsetYMm", "elevationThreshold",
   "mapStyle", "colorMode", "routeColor", "routeCasing", "routeCasingColor",
   "arrowStyle", "arrowCount", "arrowPlacement", "arrowIntervalMm", "arrowSameAsRoute", "arrowColor",
-  "showProfile", "showProfileElevation", "showEndpointElevation", "showMap", "showArrows", "showWatermark", "showDatetime",
+  "showProfile", "showProfileElevation", "showEndpointElevation", "showMap", "showRoute", "showArrows", "showWatermark", "showDatetime",
   "antialias", "metaPosition", "profilePosition", "previewScale"
 ];
 const layoutControlMap = {
@@ -2921,7 +2923,7 @@ const layoutControlMap = {
   elevationThreshold: "elevation-threshold", showProfile: "show-profile",
   showProfileElevation: "show-profile-elevation",
   showEndpointElevation: "show-endpoint-elevation",
-  showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
+  showMap: "show-map", showRoute: "show-route", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
   antialias: "antialias", metaPosition: "meta-position",
   profilePosition: "profile-position", previewScale: "preview-scale"
 };
@@ -2984,7 +2986,7 @@ $("settings-file").addEventListener("change", async (event) => {
       elevationThreshold: "elevation-threshold", timeZone: "time-zone", showProfile: "show-profile",
       showProfileElevation: "show-profile-elevation",
       showEndpointElevation: "show-endpoint-elevation",
-      showMap: "show-map", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
+      showMap: "show-map", showRoute: "show-route", showArrows: "show-arrows", showWatermark: "show-watermark", showDatetime: "show-datetime",
       antialias: "antialias", previewScale: "preview-scale",
       startLabelPosition: "start-label-position", finishLabelPosition: "finish-label-position",
       startLabelOffsetXMm: "start-label-offset-x", startLabelOffsetYMm: "start-label-offset-y",

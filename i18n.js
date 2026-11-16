@@ -120,6 +120,7 @@ const ja = {
   "Line width mm": "線幅 mm",
   "Toggle display": "表示切替",
   "Background map": "背景地図",
+  "Route": "ルート",
   "Direction of travel": "進行方向",
   "Elevation on profile point labels": "標高ラベルに標高を表示",
   "Elevation on start/end labels": "開始・終了地点ラベルに標高を表示",
