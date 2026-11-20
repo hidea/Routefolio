@@ -65,8 +65,7 @@
 .field-grid { @apply grid grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
 .field-grid .wide { @apply col-span-full; }
 .field-pair { @apply grid min-w-0 grid-cols-2 gap-2 max-[420px]:grid-cols-1; }
-.custom-labels-heading { @apply mt-3 flex items-center justify-between gap-2; }
-.custom-labels-heading h3 { @apply m-0 text-[.76rem] tracking-[.08em]; }
+.custom-labels-heading { @apply mt-3 flex items-center justify-end gap-2; }
 #photo-drop-zone { @apply min-h-9 shrink-0 px-3 py-2 text-[.68rem]; }
 .add-label-button {
   @apply mt-2 grid min-h-10 w-full cursor-pointer place-items-center rounded-none border border-ink bg-ink px-2.5 py-2 text-[.76rem] text-white;
@@ -119,7 +118,7 @@
 .settings-subgroup {
   @apply m-0 min-w-0 border-0 p-0;
 }
-.settings-subgroup + .settings-subgroup {
+* + .settings-subgroup {
   @apply mt-3.5 border-t border-line pt-3;
 }
 .settings-subgroup > legend {
@@ -144,14 +143,8 @@
 .margin-link-button[aria-pressed="true"] .link-slash { display: none; }
 .margin-link-button:hover { @apply bg-[#ece9df]; }
 .check + .check { @apply mt-2.5; }
-.visibility-options {
-  @apply grid grid-cols-2 gap-2 max-[420px]:grid-cols-1;
-}
-.visibility-options legend { @apply col-span-full; }
-.visibility-options .check {
-  @apply min-h-9 rounded-sm border border-line bg-control px-2 py-[7px];
-}
-.visibility-options .check + .check { @apply mt-0; }
+.settings-body > .check:not(:last-child), .settings-subgroup > .check:not(:last-child) { @apply mb-2.5; }
+.field-grid + .check { @apply mt-2.5; }
 .actions {
   @apply mt-2 rounded-md border border-line bg-[#f7f6f1] p-3!;
 }

@@ -154,6 +154,17 @@ function readCustomLabels() {
   })).filter((label) => label.name);
 }
 
+function syncDependentFields(s) {
+  const color = s.colorMode === "color";
+  const show = (id, visible) => { $(id).closest("label").hidden = !visible; };
+  show("route-color", color);
+  show("route-casing-color", color && s.routeCasing === "custom");
+  show("arrow-count", s.arrowPlacement !== "interval");
+  show("arrow-interval", s.arrowPlacement === "interval");
+  show("arrow-same-as-route", color);
+  show("arrow-color", color && !s.arrowSameAsRoute);
+}
+
 function updateCustomLabelFields(row) {
   const mode = row.querySelector(".custom-mode").value;
   row.querySelector(".custom-distance-fields").hidden = mode !== "distance";
@@ -2016,6 +2027,7 @@ function profileSvg(data, s, left, right, top, bottom, fs, annotationFontSize, c
 async function update() {
   const version = ++renderVersion;
   const s = state();
+  syncDependentFields(s);
   $("size-summary").value = `${s.width.toLocaleString()} × ${s.height.toLocaleString()} px\n${s.widthMm.toFixed(1)} × ${s.heightMm.toFixed(1)} mm（${s.dpi} DPI）`;
   if (!routeData) return;
   try {

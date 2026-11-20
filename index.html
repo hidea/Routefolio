@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="styles.css?v=20260804-56">
+  <link rel="stylesheet" href="styles.css?v=20260804-59">
 </head>
 <body>
   <main class="workspace">
@@ -67,59 +67,12 @@
             <label>End time<input id="clip-time-end" type="datetime-local"></label>
           </div>
         </fieldset>
+        <label>Elevation noise threshold m<input id="elevation-threshold" type="number" min="0" max="50" value="0"></label>
         </div>
       </details>
 
       <details class="settings-group">
-        <summary><span class="step-number">02</span><span>Labels &amp; text</span></summary>
-        <div class="settings-body">
-        <div class="field-grid">
-          <label class="wide">Heading<input id="section-title" value="Section 4: Crossing the Mountains"></label>
-          <label>Start-point name<input id="start-name" value="Start"></label>
-          <label>Start-name direction
-            <select id="start-label-position">
-              <option value="top">Top</option>
-              <option value="top-right">Top right</option>
-              <option value="right">Right</option>
-              <option value="bottom-right">Bottom right</option>
-              <option value="bottom">Bottom</option>
-              <option value="bottom-left">Bottom left</option>
-              <option value="left">Left</option>
-              <option value="top-left">Top left</option>
-            </select>
-          </label>
-          <label>Horizontal offset mm<input id="start-label-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-          <label>Vertical offset mm<input id="start-label-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
-          <label>Finish-point name<input id="finish-name" value="Finish"></label>
-          <label>Finish-name direction
-            <select id="finish-label-position">
-              <option value="top">Top</option>
-              <option value="top-right">Top right</option>
-              <option value="right">Right</option>
-              <option value="bottom-right">Bottom right</option>
-              <option value="bottom">Bottom</option>
-              <option value="bottom-left">Bottom left</option>
-              <option value="left">Left</option>
-              <option value="top-left">Top left</option>
-            </select>
-          </label>
-          <label>Horizontal offset mm<input id="finish-label-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-          <label>Vertical offset mm<input id="finish-label-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
-        </div>
-        <div class="custom-labels-heading">
-          <h3>Additional labels</h3>
-          <label class="file-drop" id="photo-drop-zone" for="photo-file">
-            <span id="photo-drop-label">Add from photos</span>
-            <input id="photo-file" type="file" multiple accept="image/jpeg,image/heic,image/heif,.jpg,.jpeg,.heic,.heif">
-          </label>
-        </div>
-        <div id="custom-labels"></div>
-        <button id="add-custom-label" class="add-label-button" type="button">Add label</button>
-        </div>
-      </details>
-
-      <details class="settings-group">
-        <summary><span class="step-number">03</span><span>Output size</span></summary>
+        <summary><span class="step-number">02</span><span>Paper &amp; output</span></summary>
         <div class="settings-body">
         <fieldset class="mode-picker">
           <legend>Specify by</legend>
@@ -136,40 +89,81 @@
         </div>
         <label>DPI<input id="dpi" type="number" min="72" max="1200" value="300"></label>
         <output id="size-summary" class="size-summary"></output>
+        <fieldset class="margin-control">
+          <legend>Margins <span>mm</span></legend>
+          <div class="margin-values-row">
+            <div class="field-grid">
+              <label>Top<input id="margin-top" type="number" min="0" max="200" step="0.5" value="12"></label>
+              <label>Right<input id="margin-right" type="number" min="0" max="200" step="0.5" value="12"></label>
+              <label>Bottom<input id="margin-bottom" type="number" min="0" max="200" step="0.5" value="12"></label>
+              <label>Left<input id="margin-left" type="number" min="0" max="200" step="0.5" value="12"></label>
+            </div>
+            <button id="margin-link" class="margin-link-button" type="button" aria-pressed="true" aria-label="Link margin values" title="Link margin values">
+              <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+                <path d="M10.6 13.4a4 4 0 0 0 5.7.1l2.1-2.1a4 4 0 0 0-5.7-5.7l-1.2 1.2M13.4 10.6a4 4 0 0 0-5.7-.1l-2.1 2.1a4 4 0 0 0 5.7 5.7l1.2-1.2"/>
+                <path class="link-slash" d="M4 4l16 16"/>
+              </svg>
+            </button>
+          </div>
+        </fieldset>
+        <div class="field-grid">
+          <label>Color
+            <select id="color-mode">
+              <option value="mono">Monochrome</option>
+              <option value="color">Color</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input id="antialias" type="checkbox" checked> Anti-aliasing</label>
+        <label class="check"><input id="show-watermark" type="checkbox" checked> Routefolio credit</label>
         </div>
       </details>
 
       <details class="settings-group">
-        <summary><span class="step-number">04</span><span>Drawing &amp; display items</span></summary>
+        <summary><span class="step-number">03</span><span>Map</span></summary>
         <div class="settings-body">
+        <label class="check"><input id="show-map" type="checkbox" checked> Show</label>
+        <div class="field-grid">
+          <label class="wide">Map style
+            <select id="map-style">
+              <option value="standard">Standard</option>
+              <option value="water">Water and land</option>
+              <option value="terrain">Terrain emphasis</option>
+            </select>
+          </label>
+          <label class="wide">Background map opacity %<input id="map-intensity" type="number" min="0" max="100" step="5" value="50"></label>
+          <label class="wide">Map zoom %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
+          <div class="field-pair wide" role="group" aria-label="Map offset">
+            <label>Horizontal offset mm<input id="route-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label>Vertical offset mm<input id="route-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          </div>
+          <div class="field-pair wide" role="group" aria-label="Scale bar offset">
+            <label>Gauge horizontal offset mm<input id="scale-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label>Gauge vertical offset mm<input id="scale-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          </div>
+          <label>Copyright font size pt<input id="copyright-font-size" type="number" min="2" max="72" step="0.1" value="4.8"></label>
+        </div>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">04</span><span>Route</span></summary>
+        <div class="settings-body">
+        <label class="check"><input id="show-route" type="checkbox" checked> Show</label>
+        <div class="field-grid">
+          <label>Route color<input id="route-color" type="color" value="#d23c2a"></label>
+          <label>Route line mm<input id="route-width" type="number" min="0.2" max="1.5" step="0.05" value="0.5"></label>
+          <label>Route outline<select id="route-casing">
+            <option value="white" selected>White</option>
+            <option value="black">Black</option>
+            <option value="custom">Custom color</option>
+          </select></label>
+          <label>Outline color<input id="route-casing-color" type="color" value="#1d2733"></label>
+        </div>
         <fieldset class="settings-subgroup">
-          <legend>Lines &amp; margins</legend>
-          <fieldset class="margin-control">
-            <legend>Margins <span>mm</span></legend>
-            <div class="margin-values-row">
-              <div class="field-grid">
-                <label>Top<input id="margin-top" type="number" min="0" max="200" step="0.5" value="12"></label>
-                <label>Right<input id="margin-right" type="number" min="0" max="200" step="0.5" value="12"></label>
-                <label>Bottom<input id="margin-bottom" type="number" min="0" max="200" step="0.5" value="12"></label>
-                <label>Left<input id="margin-left" type="number" min="0" max="200" step="0.5" value="12"></label>
-              </div>
-              <button id="margin-link" class="margin-link-button" type="button" aria-pressed="true" aria-label="Link margin values" title="Link margin values">
-                <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
-                  <path d="M10.6 13.4a4 4 0 0 0 5.7.1l2.1-2.1a4 4 0 0 0-5.7-5.7l-1.2 1.2M13.4 10.6a4 4 0 0 0-5.7-.1l-2.1 2.1a4 4 0 0 0 5.7 5.7l1.2-1.2"/>
-                  <path class="link-slash" d="M4 4l16 16"/>
-                </svg>
-              </button>
-            </div>
-          </fieldset>
-          <div class="field-grid line-settings-grid">
-            <label>Route line mm<input id="route-width" type="number" min="0.2" max="1.5" step="0.05" value="0.5"></label>
-            <label>Route outline<select id="route-casing">
-              <option value="white" selected>White</option>
-              <option value="black">Black</option>
-              <option value="custom">Custom color</option>
-            </select></label>
-            <label>Outline color<input id="route-casing-color" type="color" value="#1d2733"></label>
-            <label>Arrow size mm<input id="arrow-size" type="number" min="0.5" max="10" step="0.25" value="2.5"></label>
+          <legend>Direction of travel</legend>
+          <label class="check"><input id="show-arrows" type="checkbox" checked> Show</label>
+          <div class="field-grid">
             <label>Arrow style<select id="arrow-style">
               <option value="triangle" selected>Triangle</option>
               <option value="chevron">Chevron</option>
@@ -179,113 +173,144 @@
               <option value="badge">Circle badge</option>
               <option value="inline">On the line</option>
             </select></label>
-            <label>Arrows per segment<input id="arrow-count" type="number" min="1" max="20" step="1" value="3"></label>
+            <label>Arrow size mm<input id="arrow-size" type="number" min="0.5" max="10" step="0.25" value="2.5"></label>
             <label>Arrow placement<select id="arrow-placement">
               <option value="count" selected>Per segment count</option>
               <option value="interval">Fixed interval</option>
             </select></label>
+            <label>Arrows per segment<input id="arrow-count" type="number" min="1" max="20" step="1" value="3"></label>
             <label>Arrow interval mm<input id="arrow-interval" type="number" min="5" max="500" step="1" value="30"></label>
             <label class="check"><input id="arrow-same-as-route" type="checkbox" checked>Same as route color</label>
             <label>Arrow color<input id="arrow-color" type="color" value="#111111"></label>
-            <label>Elevation noise threshold m<input id="elevation-threshold" type="number" min="0" max="50" value="0"></label>
           </div>
         </fieldset>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">05</span><span>Heading</span></summary>
+        <div class="settings-body">
+        <div class="field-grid">
+          <label class="wide">Heading<input id="section-title" value="Section 4: Crossing the Mountains"></label>
+          <label class="wide">Heading placement
+            <select id="meta-position">
+              <option value="top-left">Top left</option>
+              <option value="top-center">Top center</option>
+              <option value="top-right">Top right</option>
+              <option value="center-left">Center left</option>
+              <option value="center">Center</option>
+              <option value="center-right">Center right</option>
+              <option value="bottom-left">Bottom left</option>
+              <option value="bottom-center">Bottom center</option>
+              <option value="bottom-right">Bottom right</option>
+            </select>
+          </label>
+          <div class="field-pair wide" role="group" aria-label="Heading block offset">
+            <label>Heading horizontal offset mm<input id="info-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label>Heading vertical offset mm<input id="info-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          </div>
+          <label>Heading size pt<input id="info-font-size" type="number" min="4" max="144" step="0.5" value="18"></label>
+        </div>
+        <label class="check"><input id="show-datetime" type="checkbox" checked> Start/end datetime</label>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">06</span><span>Point labels</span></summary>
+        <div class="settings-body">
         <fieldset class="settings-subgroup">
-          <legend>Text &amp; points</legend>
+          <legend>Common</legend>
           <div class="field-grid">
-            <label>Heading size pt<input id="info-font-size" type="number" min="4" max="144" step="0.5" value="18"></label>
             <label>Label size pt<input id="label-font-size" type="number" min="4" max="144" step="0.5" value="10"></label>
-            <label>Marker size %<input id="marker-scale" type="number" min="10" max="200" step="5" value="100"></label>
             <label>Elevation label size pt<input id="elevation-font-size" type="number" min="4" max="144" step="0.5" value="7"></label>
-            <label>Profile axis label size pt<input id="profile-axis-font-size" type="number" min="2" max="72" step="0.5" value="7"></label>
-            <label>Copyright font size pt<input id="copyright-font-size" type="number" min="2" max="72" step="0.1" value="4.8"></label>
-            <label class="wide">Heading placement
-              <select id="meta-position">
-                <option value="top-left">Top left</option>
-                <option value="top-center">Top center</option>
-                <option value="top-right">Top right</option>
-                <option value="center-left">Center left</option>
-                <option value="center">Center</option>
-                <option value="center-right">Center right</option>
-                <option value="bottom-left">Bottom left</option>
-                <option value="bottom-center">Bottom center</option>
-                <option value="bottom-right">Bottom right</option>
-              </select>
-            </label>
-            <div class="field-pair wide" role="group" aria-label="Heading block offset">
-              <label>Heading horizontal offset mm<input id="info-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-              <label>Heading vertical offset mm<input id="info-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            </div>
+            <label>Marker size %<input id="marker-scale" type="number" min="10" max="200" step="5" value="100"></label>
           </div>
-        </fieldset>
-        <fieldset class="settings-subgroup">
-          <legend>Map placement</legend>
-          <div class="field-grid">
-            <label class="wide">Map style
-              <select id="map-style">
-                <option value="standard">Standard</option>
-                <option value="water">Water and land</option>
-                <option value="terrain">Terrain emphasis</option>
-              </select>
-            </label>
-            <label>Color
-              <select id="color-mode">
-                <option value="mono">Monochrome</option>
-                <option value="color">Color</option>
-              </select>
-            </label>
-            <label>Route color<input id="route-color" type="color" value="#d23c2a"></label>
-            <label class="wide">Map zoom %<input id="route-scale" type="number" min="50" max="300" step="5" value="100"></label>
-            <label class="wide">Background map opacity %<input id="map-intensity" type="number" min="0" max="100" step="5" value="50"></label>
-            <div class="field-pair wide" role="group" aria-label="Map offset">
-              <label>Horizontal offset mm<input id="route-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-              <label>Vertical offset mm<input id="route-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            </div>
-            <div class="field-pair wide" role="group" aria-label="Scale bar offset">
-              <label>Gauge horizontal offset mm<input id="scale-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-              <label>Gauge vertical offset mm<input id="scale-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            </div>
-          </div>
-        </fieldset>
-        <fieldset class="settings-subgroup">
-          <legend>Elevation profile</legend>
-          <div class="field-grid">
-            <label class="wide">Placement
-              <select id="profile-position">
-                <option value="bottom-right">Bottom right</option>
-                <option value="bottom-left">Bottom left</option>
-                <option value="bottom-center">Bottom center</option>
-                <option value="top-right">Top right</option>
-                <option value="top-left">Top left</option>
-                <option value="top-center">Top center</option>
-                <option value="center-left">Center left</option>
-                <option value="center">Center</option>
-                <option value="center-right">Center right</option>
-              </select>
-            </label>
-            <label class="wide">Line width mm<input id="profile-width" type="number" min="0.1" max="1.5" step="0.05" value="0.3"></label>
-            <div class="field-pair wide" role="group" aria-label="Elevation profile dimensions">
-              <label>Width mm<input id="profile-box-width" type="number" min="10" max="1000" step="0.1" value="85.3"></label>
-              <label>Height mm<input id="profile-box-height" type="number" min="10" max="1000" step="0.1" value="29.8"></label>
-            </div>
-            <div class="field-pair wide" role="group" aria-label="Elevation profile offset">
-              <label>Horizontal offset mm<input id="profile-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
-              <label>Vertical offset mm<input id="profile-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
-            </div>
-          </div>
-        </fieldset>
-        <fieldset class="settings-subgroup visibility-options">
-          <legend>Toggle display</legend>
-          <label class="check"><input id="show-map" type="checkbox" checked> Background map</label>
-          <label class="check"><input id="show-route" type="checkbox" checked> Route</label>
-          <label class="check"><input id="show-arrows" type="checkbox" checked> Direction of travel</label>
-          <label class="check"><input id="show-profile" type="checkbox" checked> Elevation profile</label>
-          <label class="check"><input id="show-profile-elevation" type="checkbox" checked> Elevation on profile point labels</label>
           <label class="check"><input id="show-endpoint-elevation" type="checkbox" checked> Elevation on start/end labels</label>
-          <label class="check"><input id="show-datetime" type="checkbox" checked> Start/end datetime</label>
-          <label class="check"><input id="antialias" type="checkbox" checked> Anti-aliasing</label>
-          <label class="check"><input id="show-watermark" type="checkbox" checked> Routefolio credit</label>
         </fieldset>
+        <fieldset class="settings-subgroup">
+          <legend>Start point</legend>
+          <div class="field-grid">
+            <label>Start-point name<input id="start-name" value="Start"></label>
+            <label>Start-name direction
+              <select id="start-label-position">
+                <option value="top">Top</option>
+                <option value="top-right">Top right</option>
+                <option value="right">Right</option>
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom">Bottom</option>
+                <option value="bottom-left">Bottom left</option>
+                <option value="left">Left</option>
+                <option value="top-left">Top left</option>
+              </select>
+            </label>
+            <label>Horizontal offset mm<input id="start-label-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label>Vertical offset mm<input id="start-label-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-subgroup">
+          <legend>Finish point</legend>
+          <div class="field-grid">
+            <label>Finish-point name<input id="finish-name" value="Finish"></label>
+            <label>Finish-name direction
+              <select id="finish-label-position">
+                <option value="top">Top</option>
+                <option value="top-right">Top right</option>
+                <option value="right">Right</option>
+                <option value="bottom-right">Bottom right</option>
+                <option value="bottom">Bottom</option>
+                <option value="bottom-left">Bottom left</option>
+                <option value="left">Left</option>
+                <option value="top-left">Top left</option>
+              </select>
+            </label>
+            <label>Horizontal offset mm<input id="finish-label-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label>Vertical offset mm<input id="finish-label-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          </div>
+        </fieldset>
+        <fieldset class="settings-subgroup">
+          <legend>Additional labels</legend>
+          <div class="custom-labels-heading">
+            <label class="file-drop" id="photo-drop-zone" for="photo-file">
+              <span id="photo-drop-label">Add from photos</span>
+              <input id="photo-file" type="file" multiple accept="image/jpeg,image/heic,image/heif,.jpg,.jpeg,.heic,.heif">
+            </label>
+          </div>
+          <div id="custom-labels"></div>
+          <button id="add-custom-label" class="add-label-button" type="button">Add label</button>
+        </fieldset>
+        </div>
+      </details>
+
+      <details class="settings-group">
+        <summary><span class="step-number">07</span><span>Elevation profile</span></summary>
+        <div class="settings-body">
+        <label class="check"><input id="show-profile" type="checkbox" checked> Show</label>
+        <label class="check"><input id="show-profile-elevation" type="checkbox" checked> Elevation on profile point labels</label>
+        <div class="field-grid">
+          <label class="wide">Placement
+            <select id="profile-position">
+              <option value="bottom-right">Bottom right</option>
+              <option value="bottom-left">Bottom left</option>
+              <option value="bottom-center">Bottom center</option>
+              <option value="top-right">Top right</option>
+              <option value="top-left">Top left</option>
+              <option value="top-center">Top center</option>
+              <option value="center-left">Center left</option>
+              <option value="center">Center</option>
+              <option value="center-right">Center right</option>
+            </select>
+          </label>
+          <div class="field-pair wide" role="group" aria-label="Elevation profile dimensions">
+            <label>Width mm<input id="profile-box-width" type="number" min="10" max="1000" step="0.1" value="85.3"></label>
+            <label>Height mm<input id="profile-box-height" type="number" min="10" max="1000" step="0.1" value="29.8"></label>
+          </div>
+          <div class="field-pair wide" role="group" aria-label="Elevation profile offset">
+            <label>Horizontal offset mm<input id="profile-offset-x" type="number" min="-500" max="500" step="0.5" value="0"></label>
+            <label>Vertical offset mm<input id="profile-offset-y" type="number" min="-500" max="500" step="0.5" value="0"></label>
+          </div>
+          <label class="wide">Line width mm<input id="profile-width" type="number" min="0.1" max="1.5" step="0.05" value="0.3"></label>
+          <label>Profile axis label size pt<input id="profile-axis-font-size" type="number" min="2" max="72" step="0.5" value="7"></label>
+        </div>
         </div>
       </details>
 
@@ -360,6 +385,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="app.js?v=20260806-91"></script>
+  <script type="module" src="app.js?v=20260806-92"></script>
 </body>
 </html>
