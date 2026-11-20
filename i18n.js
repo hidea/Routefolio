@@ -65,6 +65,7 @@ const ja = {
   "Left": "左",
   "Top left": "左上",
   "Hidden": "非表示",
+  "Reorder": "並べ替え",
   "Top center": "上中央",
   "Center left": "左中央",
   "Center": "中央",

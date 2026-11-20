@@ -180,7 +180,7 @@ function addCustomLabel(label) {
   row.open = isNewLabel;
   row.dataset.markerStyle = label.markerStyle || "default";
   row.innerHTML = `
-    <summary class="custom-label-summary"><span class="custom-label-title"></span></summary>
+    <summary class="custom-label-summary"><span class="custom-label-handle" role="button" tabindex="0" aria-label="Reorder" title="Reorder">⋮⋮</span><span class="custom-label-title"></span></summary>
     <div class="custom-label-body">
     <div class="field-grid">
       <label class="wide">Name<input class="custom-name" type="text" placeholder="e.g. Pass, CP1"></label>
@@ -255,8 +255,54 @@ function addCustomLabel(label) {
     row.remove();
     update();
   });
+  setupCustomLabelReorder(row);
   $("custom-labels").append(row);
   updateCustomLabelFields(row);
+}
+
+function setupCustomLabelReorder(row) {
+  const handle = row.querySelector(".custom-label-handle");
+  const list = $("custom-labels");
+  let startNext = null;
+  handle.addEventListener("click", (event) => event.preventDefault());
+  // Moving the row in the DOM drops pointer capture, so track the drag on the document.
+  const moveDrag = (event) => {
+    const before = [...list.children].find((sibling) => {
+      if (sibling === row) return false;
+      const rect = sibling.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2;
+    }) || null;
+    if (before !== row.nextElementSibling) list.insertBefore(row, before);
+  };
+  const endDrag = () => {
+    document.removeEventListener("pointermove", moveDrag);
+    document.removeEventListener("pointerup", endDrag);
+    document.removeEventListener("pointercancel", endDrag);
+    row.classList.remove("dragging");
+    if (row.nextElementSibling !== startNext) update();
+  };
+  handle.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    row.classList.add("dragging");
+    startNext = row.nextElementSibling;
+    document.addEventListener("pointermove", moveDrag);
+    document.addEventListener("pointerup", endDrag);
+    document.addEventListener("pointercancel", endDrag);
+  });
+  handle.addEventListener("keydown", (event) => {
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+    } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      const up = event.key === "ArrowUp";
+      const sibling = up ? row.previousElementSibling : row.nextElementSibling;
+      if (!sibling) return;
+      list.insertBefore(row, up ? sibling : sibling.nextElementSibling);
+      handle.focus();
+      update();
+    }
+  });
 }
 
 function setCustomLabels(labels = []) {

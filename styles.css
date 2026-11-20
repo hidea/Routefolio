@@ -71,7 +71,18 @@
   @apply mt-2 grid min-h-10 w-full cursor-pointer place-items-center rounded-none border border-ink bg-ink px-2.5 py-2 text-[.76rem] text-white;
 }
 .custom-label-row { @apply mt-2 border-t border-line py-2; }
-.custom-label-summary { @apply cursor-pointer truncate text-[.76rem] font-semibold; }
+.custom-label-row.dragging { @apply bg-[#f7f6f1] opacity-70; }
+.custom-label-summary { @apply flex cursor-pointer list-none items-center gap-2 text-[.76rem] font-semibold; }
+.custom-label-summary::-webkit-details-marker { display: none; }
+.custom-label-summary::after {
+  @apply ml-auto size-1.5 shrink-0 border-r-[1.5px] border-b-[1.5px] border-current content-[''];
+  transform: rotate(45deg) translateY(-1px);
+  transition: transform .16s ease;
+}
+.custom-label-row[open] > .custom-label-summary::after { transform: rotate(225deg) translate(-1px, -1px); }
+.custom-label-title { @apply min-w-0 truncate; }
+.custom-label-handle { @apply cursor-grab touch-none select-none text-muted; }
+.custom-label-row.dragging .custom-label-handle { @apply cursor-grabbing; }
 .custom-label-body { @apply mt-2 grid gap-2; }
 .custom-label-row .remove-label { @apply min-h-0 justify-self-end border-0 border-b border-current bg-transparent px-0 py-1 text-[.72rem] text-[#7b2820]; }
 .file-drop {
